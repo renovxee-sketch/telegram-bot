@@ -1,46 +1,48 @@
-import os
-import telebot
-from flask import Flask
-from threading import Thread
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
-
-TOKEN = os.getenv("BOT_TOKEN")
-
-if not TOKEN:
-    raise RuntimeError("BOT_TOKEN မတွေ့ပါ။ Render Environment Variables မှာ BOT_TOKEN ထည့်ပါ။")
-
-bot = telebot.TeleBot(TOKEN)
-
-app = Flask(__name__)
-
-
-@app.route("/")
-def home():
-    return "Game Bot is running!"
-
-
-# =========================
-# START
-# =========================
-
 @bot.message_handler(commands=["start"])
 def start(message):
-    text = """
-🎮 Ruifineshyt Game Bot
+    user_id = message.from_user.id
+    first_name = message.from_user.first_name or "Player"
 
-👋 မင်္ဂလာပါ!
+    # လူသစ်အတွက်သာ Welcome Bonus
+    is_new_user = user_id not in user_balances
 
-🎲 Dice
-🎳 Bowling
-⚽ Football
-🏀 Basketball
-🎰 Slot
-🎯 Dart
+    if is_new_user:
+        user_balances[user_id] = {
+            "usd": 10000,
+            "dia": 500
+        }
 
-👥 သူငယ်ချင်းတွေနဲ့အတူ ကစားနိုင်ပါတယ်။
+        save_balances()
 
-👇 Group ထဲထည့်ပြီး စတင်ကစားပါ။
+        welcome_bonus = """
+🎁 NEW PLAYER BONUS
+
+💵 USD +$10,000
+💎 Diamonds +500
+
+🎉 စတင်ကစားဖို့ အခမဲ့ဆု ရရှိပါပြီ!
 """
+    else:
+        welcome_bonus = ""
+
+    usd = user_balances[user_id]["usd"]
+    dia = user_balances[user_id]["dia"]
+
+    text = f"""
+👋 မင်္ဂလာပါ {first_name}!
+
+🎮 အပျော်တန်း Game ကစားတဲ့ Bot မှ
+ကြိုဆိုပါတယ်!
+
+💎 Diamonds: {dia:,} 💎
+💵 USD Balance: ${usd:,} USD
+
+👇 အောက်ပါ Button ကို နှိပ်ပြီး
+သင့် Group ထဲသို့ Bot ကို ထည့်သွင်းနိုင်ပါတယ်!
+"""
+
+    if welcome_bonus:
+        text += "\n" + welcome_bonus
 
     keyboard = InlineKeyboardMarkup()
 
@@ -63,135 +65,3 @@ def start(message):
         text,
         reply_markup=keyboard
     )
-
-
-# =========================
-# GAME MENU
-# =========================
-
-@bot.message_handler(commands=["game"])
-def game(message):
-
-    keyboard = InlineKeyboardMarkup(row_width=2)
-
-    keyboard.add(
-        InlineKeyboardButton("⚽ Football", callback_data="game_football"),
-        InlineKeyboardButton("🎰 Slot", callback_data="game_slot"),
-        InlineKeyboardButton("🎲 Dice", callback_data="game_dice"),
-        InlineKeyboardButton("🎯 Dart", callback_data="game_dart"),
-        InlineKeyboardButton("🎳 Bowling", callback_data="game_bowling"),
-        InlineKeyboardButton("🏀 Basketball", callback_data="game_basketball")
-    )
-
-    bot.send_message(
-        message.chat.id,
-        "🎮 GAME MENU\n\nဂိမ်းတစ်ခုရွေးပါ 👇",
-        reply_markup=keyboard
-    )
-
-
-# =========================
-# GAME BUTTONS
-# =========================
-
-@bot.callback_query_handler(func=lambda call: call.data == "game_menu")
-def game_menu_button(call):
-
-    keyboard = InlineKeyboardMarkup(row_width=2)
-
-    keyboard.add(
-        InlineKeyboardButton("⚽ Football", callback_data="game_football"),
-        InlineKeyboardButton("🎰 Slot", callback_data="game_slot"),
-        InlineKeyboardButton("🎲 Dice", callback_data="game_dice"),
-        InlineKeyboardButton("🎯 Dart", callback_data="game_dart"),
-        InlineKeyboardButton("🎳 Bowling", callback_data="game_bowling"),
-        InlineKeyboardButton("🏀 Basketball", callback_data="game_basketball")
-    )
-
-    bot.answer_callback_query(call.id)
-
-    bot.send_message(
-        call.message.chat.id,
-        "🎮 GAME MENU\n\nဂိမ်းတစ်ခုရွေးပါ 👇",
-        reply_markup=keyboard
-    )
-
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith("game_"))
-def game_button(call):
-
-    game_name = call.data
-
-    bot.answer_callback_query(call.id)
-
-    if game_name == "game_dice":
-        bot.send_dice(call.message.chat.id, emoji="🎲")
-
-    elif game_name == "game_bowling":
-        bot.send_dice(call.message.chat.id, emoji="🎳")
-
-    elif game_name == "game_football":
-        bot.send_dice(call.message.chat.id, emoji="⚽")
-
-    elif game_name == "game_basketball":
-        bot.send_dice(call.message.chat.id, emoji="🏀")
-
-    elif game_name == "game_slot":
-        bot.send_dice(call.message.chat.id, emoji="🎰")
-
-    elif game_name == "game_dart":
-        bot.send_dice(call.message.chat.id, emoji="🎯")
-
-
-# =========================
-# DIRECT COMMANDS
-# =========================
-
-@bot.message_handler(commands=["dice"])
-def dice(message):
-    bot.send_dice(message.chat.id, emoji="🎲")
-
-
-@bot.message_handler(commands=["bowling"])
-def bowling(message):
-    bot.send_dice(message.chat.id, emoji="🎳")
-
-
-@bot.message_handler(commands=["football"])
-def football(message):
-    bot.send_dice(message.chat.id, emoji="⚽")
-
-
-@bot.message_handler(commands=["basketball"])
-def basketball(message):
-    bot.send_dice(message.chat.id, emoji="🏀")
-
-
-@bot.message_handler(commands=["slot"])
-def slot(message):
-    bot.send_dice(message.chat.id, emoji="🎰")
-
-
-@bot.message_handler(commands=["dart"])
-def dart(message):
-    bot.send_dice(message.chat.id, emoji="🎯")
-
-
-# =========================
-# FLASK SERVER
-# =========================
-
-def run():
-    app.run(
-        host="0.0.0.0",
-        port=int(os.environ.get("PORT", 10000))
-    )
-
-
-# =========================
-# START BOT
-# =========================
-
-Thread(target=run).start()
-
-bot.infinity_polling()
