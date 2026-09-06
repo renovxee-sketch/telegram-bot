@@ -7,11 +7,14 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 TOKEN = os.getenv("BOT_TOKEN")
 
 if not TOKEN:
-    raise RuntimeError("BOT_TOKEN မတွေ့ပါ။ Render Environment Variables မှာ BOT_TOKEN ထည့်ပါ။")
+    raise RuntimeError(
+        "BOT_TOKEN မတွေ့ပါ။ Render Environment Variables မှာ BOT_TOKEN ထည့်ပါ။"
+    )
 
 bot = telebot.TeleBot(TOKEN)
 
 app = Flask(__name__)
+
 
 @app.route("/")
 def home():
@@ -20,14 +23,15 @@ def home():
 
 @bot.message_handler(commands=["start"])
 def start(message):
-    text = """
-👋 မင်္ဂလာပါ Takemichi Hanagaki!
 
-🎮 အပျော်တန်းGameကစားတဲ့Bot မှ ကြိုဆိုပါတယ်!
+    user = message.from_user
+    user_name = user.first_name or user.full_name
 
-👇 အောက်ပါ Button ကို နှိပ်ပြီး
-သင့် Group ထဲသို့ Bot ကို ထည့်သွင်းနိုင်ပါတယ်!
-"""
+    text = (
+        f'👋 မင်္ဂလာပါ <a href="tg://user?id={user.id}">{user_name}</a>!\n\n'
+        f'🎮 အပျော်တန်းGameကစားတဲ့Bot မှ ကြိုဆိုပါတယ်!\n\n'
+        f'👇 အောက်ပါ Button ကို နှိပ်ပြီး သင့် Group ထဲသို့ Bot ကို ထည့်သွင်းနိုင်ပါတယ်!'
+    )
 
     keyboard = InlineKeyboardMarkup()
 
@@ -41,7 +45,8 @@ def start(message):
     bot.send_message(
         message.chat.id,
         text,
-        reply_markup=keyboard
+        reply_markup=keyboard,
+        parse_mode="HTML"
     )
 
 
@@ -72,4 +77,16 @@ def slot(message):
 
 @bot.message_handler(commands=["dart"])
 def dart(message):
-    bot.send_dice(message.chat
+    bot.send_dice(message.chat.id, emoji="🎯")
+
+
+def run():
+    app.run(
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", 10000))
+    )
+
+
+Thread(target=run).start()
+
+bot.infinity_polling()
