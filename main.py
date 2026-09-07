@@ -8,6 +8,8 @@ from pymongo import MongoClient
 # 1. Environment Variables များနှင့် ချိတ်ဆက်ခြင်း
 TOKEN = os.environ.get("BOT_TOKEN", "your_bot_token")
 MONGO_URL = os.environ.get("MONGO_URL", "your_mongo_url")
+# Owner ရဲ့ Telegram User ID ကို ထည့်ရန် (Render env မှာ OWNER_ID ထည့်ရပါမယ်)
+OWNER_ID = int(os.environ.get("OWNER_ID", "0"))
 
 bot = telebot.TeleBot(TOKEN)
 
@@ -32,10 +34,8 @@ def start(message):
     user_id = message.from_user.id
     user_name = message.from_user.first_name
     
-    # Database ထဲမှာ user ရှိမရှိ စစ်ဆေးခြင်း
     user = users_col.find_one({"user_id": user_id})
     if not user:
-        # အသစ်ဆိုလျှင် USD 10,000 နဲ့ Dia 500 စတင်ထည့်ပေးမည်
         users_col.insert_one({
             "user_id": user_id,
             "username": message.from_user.username,
@@ -85,7 +85,87 @@ def balance(message):
     )
     bot.send_message(message.chat.id, bal_text, parse_mode="Markdown")
 
-# 4. /game Command (လောင်းကြေးခလုတ်များပြသရန်)
+# 4. Owner Only: /usd Command (USD ဖြည့်ရန်)
+@bot.message_handler(commands=["usd"])
+def add_usd(message):
+    if message.from_user.id != OWNER_ID:
+        bot.reply_to(message, "❌ ဒီ command က Owner သာ သုံးလို့ရပါတယ်။")
+        return
+
+    args = message.text.split()
+    target_user_id = None
+    amount = None
+
+    # Reply လုပ်ထားလျှင်
+    if message.reply_to_message:
+        target_user_id = message.reply_to_message.from_user.id
+        if len(args) > 1:
+            try:
+                amount = float(args[1])
+            except ValueError:
+                pass
+    # ID နှင့် ပမာဏ တိုက်ရိုက်ပေးလျှင် (/usd user_id amount)
+    elif len(args) >= 3:
+        try:
+            target_user_id = int(args[1])
+            amount = float(args[2])
+        except ValueError:
+            pass
+
+    if not target_user_id or amount is None:
+        bot.reply_to(message, "⚠️ အသုံးစနစ်မှားယွင်းနေပါသည်။\nပုံစံ - `/usd <user_id> <amount>` (သို့မဟုတ်) User မက်ဆေ့ချ်ကို Reply လုပ်ပြီး `/usd <amount>` လို့ ပို့ပါ။", parse_mode="Markdown")
+        return
+
+    user = users_col.find_one({"user_id": target_user_id})
+    if user:
+        new_usd = user.get("usd", 0) + amount
+        users_col.update_one({"user_id": target_user_id}, {"$set": {"usd": new_usd}})
+    else:
+        new_usd = amount
+        users_col.insert_one({"user_id": target_user_id, "usd": new_usd, "dia": 500})
+
+    bot.reply_to(message, f"✅ အောင်မြင်ပါသည်။ User (`{target_user_id}`) ထံသို့ **{amount:,.2f} USD** ထည့်သွင်းပေးလိုက်ပါပြီ။\nလက်ကျန် USD: `{new_usd:,.2f}`", parse_mode="Markdown")
+
+# 5. Owner Only: /dia Command (Diamonds ဖြည့်ရန်)
+@bot.message_handler(commands=["dia"])
+def add_dia(message):
+    if message.from_user.id != OWNER_ID:
+        bot.reply_to(message, "❌ ဒီ command က Owner သာ သုံးလို့ရပါတယ်။")
+        return
+
+    args = message.text.split()
+    target_user_id = None
+    amount = None
+
+    if message.reply_to_message:
+        target_user_id = message.reply_to_message.from_user.id
+        if len(args) > 1:
+            try:
+                amount = int(args[1])
+            except ValueError:
+                pass
+    elif len(args) >= 3:
+        try:
+            target_user_id = int(args[1])
+            amount = int(args[2])
+        except ValueError:
+            pass
+
+    if not target_user_id or amount is None:
+        bot.reply_to(message, "⚠️ အသုံးစနစ်မှားယွင်းနေပါသည်။\nပုံစံ - `/dia <user_id> <amount>` (သို့မဟုတ်) User မက်ဆေ့ချ်ကို Reply လုပ်ပြီး `/dia <amount>` လို့ ပို့ပါ။", parse_mode="Markdown")
+        return
+
+    user = users_col.find_one({"user_id": target_user_id})
+    if user:
+        new_dia = user.get("dia", 0) + amount
+        users_col.update_one({"user_id": target_user_id}, {"$set": {"dia": new_dia}})
+    else:
+        new_dia = amount
+        users_col.insert_one({"user_id": target_user_id, "usd": 10000.0, "dia": new_dia})
+
+    bot.reply_to(message, f"✅ အောင်မြင်ပါသည်။ User (`{target_user_id}`) ထံသို့ **{amount} Dia** ထည့်သွင်းပေးလိုက်ပါပြီ။\nလက်ကျန် Dia: `{new_dia}`", parse_mode="Markdown")
+
+# 6. /game Command (လောင်းကြေးခလုတ်များပြသရန်)
 @bot.message_handler(commands=["game"])
 def game_menu(message):
     markup = telebot.types.InlineKeyboardMarkup(row_width=3)
@@ -108,7 +188,7 @@ def game_menu(message):
         reply_markup=markup
     )
 
-# 5. Callback Query (လောင်းကြေးနှိပ်သည့်အခါ ဂိမ်းကစားခြင်းနှင့် အနိုင်အရှုံး တွက်ချက်ခြင်း)
+# 7. Callback Query (Slot ဂိမ်းကစားခြင်း)
 @bot.callback_query_handler(func=lambda call: call.data.startswith("play_"))
 def play_slot(call):
     user_id = call.from_user.id
@@ -130,11 +210,11 @@ def play_slot(call):
     
     multiplier = 0
     if spin1 == "7" and spin2 == "7" and spin3 == "7":
-        multiplier = 30  # 777 ဆို 30x
+        multiplier = 30
     elif spin1 == "BAR" and spin2 == "BAR" and spin3 == "BAR":
-        multiplier = 10  # BAR သုံးခုတန်းလျှင် 10x
+        multiplier = 10
     elif spin1 == spin2 == spin3:
-        multiplier = 5   # အသီးတူ သုံးခုတန်းလျှင် 5x
+        multiplier = 5
         
     if multiplier > 0:
         win_amount = bet_amount * multiplier
