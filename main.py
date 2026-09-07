@@ -1,11 +1,13 @@
 import os
 import time
 import threading
+import uuid
 
 import telebot
 from telebot import types
 from flask import Flask
-from pymongo import MongoClient
+from pymongo import MongoClient, ASCENDING
+from pymongo.errors import DuplicateKeyError
 
 
 # =========================================================
@@ -16,20 +18,30 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 MONGO_URI = os.getenv("MONGO_URI")
 
 if not BOT_TOKEN:
-    raise ValueError("BOT_TOKEN is not set!")
+    raise ValueError("BOT_TOKEN is not set")
 
 if not MONGO_URI:
-    raise ValueError("MONGO_URI is not set!")
-
+    raise ValueError("MONGO_URI is not set")
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
 OWNER_USERNAME = "Ruifineshyt"
 
-WELCOME_USD = 20000
-WELCOME_DIA = 500
-
 app = Flask(__name__)
+
+
+# =========================================================
+# FLASK
+# =========================================================
+
+@app.route("/")
+def home():
+    return "Bot is running!"
+
+
+def run_flask():
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
 
 
 # =========================================================
@@ -42,39 +54,42 @@ db = mongo_client["casino_bot"]
 
 users_collection = db["users"]
 
-
-# =========================================================
-# FLASK
-# =========================================================
-
-@app.route("/")
-def home():
-    return "Casino Bot is running!"
-
-
-def run_flask():
-    port = int(os.environ.get("PORT", 10000))
-
-    app.run(
-        host="0.0.0.0",
-        port=port
-    )
+users_collection.create_index(
+    [("user_id", ASCENDING)],
+    unique=True
+)
 
 
 # =========================================================
-# DATABASE FUNCTIONS
+# HELPERS
 # =========================================================
+
+def money(value):
+    return f"{int(value):,}"
+
+
+def mention_user(user):
+    name = user.first_name or "User"
+    return f'<a href="tg://user?id={user.id}">{name}</a>'
+
+
+def is_owner(message):
+    username = message.from_user.username
+
+    if not username:
+        return False
+
+    return username.lower() == OWNER_USERNAME.lower()
+
 
 def get_user(user):
-
     user_id = user.id
 
-    existing_user = users_collection.find_one(
-        {"user_id": user_id}
-    )
+    existing = users_collection.find_one({
+        "user_id": user_id
+    })
 
-    if existing_user:
-
+    if existing:
         users_collection.update_one(
             {"user_id": user_id},
             {
@@ -85,95 +100,39 @@ def get_user(user):
             }
         )
 
-        return users_collection.find_one(
-            {"user_id": user_id}
-        )
+        existing["name"] = user.first_name or "User"
+        existing["username"] = user.username or ""
 
-    # FIRST TIME USER
+        return existing
+
     new_user = {
         "user_id": user_id,
         "name": user.first_name or "User",
         "username": user.username or "",
-        "usd": WELCOME_USD,
-        "dia": WELCOME_DIA,
+        "usd": 20000,
+        "dia": 500,
         "welcome_bonus": True
     }
 
-    users_collection.insert_one(new_user)
+    try:
+        users_collection.insert_one(new_user)
+        return new_user
 
-    return new_user
-
-
-def find_user(user_id):
-
-    return users_collection.find_one(
-        {"user_id": user_id}
-    )
+    except DuplicateKeyError:
+        return users_collection.find_one({
+            "user_id": user_id
+        })
 
 
-def add_usd(user_id, amount):
-
+def update_balance(user_id, usd_change=0, dia_change=0):
     users_collection.update_one(
         {"user_id": user_id},
         {
             "$inc": {
-                "usd": amount
+                "usd": usd_change,
+                "dia": dia_change
             }
         }
-    )
-
-
-def remove_usd(user_id, amount):
-
-    users_collection.update_one(
-        {
-            "user_id": user_id,
-            "usd": {"$gte": amount}
-        },
-        {
-            "$inc": {
-                "usd": -amount
-            }
-        }
-    )
-
-
-def add_dia(user_id, amount):
-
-    users_collection.update_one(
-        {"user_id": user_id},
-        {
-            "$inc": {
-                "dia": amount
-            }
-        }
-    )
-
-
-def money(number):
-
-    return f"{number:,}"
-
-
-def mention_user(user):
-
-    name = user.first_name or "User"
-
-    return (
-        f'<a href="tg://user?id={user.id}">'
-        f'{name}'
-        f'</a>'
-    )
-
-
-def is_owner(user):
-
-    if not user.username:
-        return False
-
-    return (
-        user.username.lower()
-        == OWNER_USERNAME.lower()
     )
 
 
@@ -184,54 +143,28 @@ def is_owner(user):
 @bot.message_handler(commands=["start"])
 def start_command(message):
 
-    # Check if user existed BEFORE creating
-    old_user = find_user(message.from_user.id)
-
     user = get_user(message.from_user)
+
+    text = (
+        f"👋 မင်္ဂလာပါ {mention_user(message.from_user)}!\n\n"
+        "🎮 အပျော်တန်း Game ကစားတဲ့ Bot မှ ကြိုဆိုပါတယ်!\n\n"
+        f"💎 Diamonds: {money(user.get('dia', 0))}💎\n"
+        f"💵 USD: ${money(user.get('usd', 0))}USD\n\n"
+        "🎁 ပထမဆုံးအကြိမ်အသုံးပြုသူများအတွက်\n"
+        "💵 $20,000 USD\n"
+        "💎 500 DIA\n"
+        "အခမဲ့ရရှိပါတယ်။\n\n"
+        "👇 အောက်ပါ Button ကို နှိပ်ပြီး သင့် Group ထဲသို့ Bot ကို ထည့်သွင်းနိုင်ပါတယ်!"
+    )
 
     markup = types.InlineKeyboardMarkup()
 
-    markup.row(
+    markup.add(
         types.InlineKeyboardButton(
-            "💰 Balance",
-            callback_data=f"balance:{message.from_user.id}"
-        ),
-        types.InlineKeyboardButton(
-            "🎰 Play Game",
-            callback_data=f"game:{message.from_user.id}"
+            "➕ Add Me Your Group",
+            url="https://t.me/Ruifineshyt_bot?startgroup=true"
         )
     )
-
-    # FIRST TIME BONUS
-    if old_user is None:
-
-        text = (
-            "🎉 <b>WELCOME BONUS!</b> 🎉\n\n"
-
-            f"👤 {mention_user(message.from_user)}\n\n"
-
-            "🎁 သင့်ကို Free Bonus ပေးလိုက်ပါတယ်!\n\n"
-
-            f"💵 USD ┃ ${money(WELCOME_USD)}\n"
-            f"💎 DIA ┃ {money(WELCOME_DIA)} 💎\n\n"
-
-            "━━━━━━━━━━━━━━━━━━━━\n\n"
-
-            "⚠️ ဒီ Bonus ကို တစ်ကြိမ်တည်းသာ ရရှိနိုင်ပါတယ်!"
-        )
-
-    else:
-
-        text = (
-            "╔══════════════════════╗\n"
-            "     🎰 CASINO BOT 🎰\n"
-            "╚══════════════════════╝\n\n"
-
-            f"👤 {mention_user(message.from_user)}\n\n"
-
-            "🎮 Game ကစားရန်နှင့် Balance ကြည့်ရန်\n"
-            "အောက်က Button ကိုရွေးပါ 👇"
-        )
 
     bot.reply_to(
         message,
@@ -242,104 +175,19 @@ def start_command(message):
 
 
 # =========================================================
-# BALANCE SCREEN
+# BALANCE
 # =========================================================
-
-def send_balance(chat_id, user_id, reply_message=None):
-
-    user = find_user(user_id)
-
-    if not user:
-        return
-
-    text = (
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        "       💰 BALANCE 💰\n"
-        "━━━━━━━━━━━━━━━━━━━━\n\n"
-
-        f"👤 {user['name']}\n\n"
-
-        f"💵 USD ┃ ${money(user['usd'])}\n"
-        f"💎 DIA ┃ {money(user['dia'])} 💎"
-    )
-
-    markup = types.InlineKeyboardMarkup()
-
-    markup.add(
-        types.InlineKeyboardButton(
-            "💵 USD ဝယ်ယူရန်",
-            callback_data=f"buy_usd_info:{user_id}"
-        )
-    )
-
-    markup.add(
-        types.InlineKeyboardButton(
-            "🔄 Refresh Balance",
-            callback_data=f"balance:{user_id}"
-        )
-    )
-
-    if reply_message:
-
-        bot.reply_to(
-            reply_message,
-            text,
-            reply_markup=markup
-        )
-
-    else:
-
-        bot.send_message(
-            chat_id,
-            text,
-            reply_markup=markup
-        )
-
 
 @bot.message_handler(commands=["balance"])
 def balance_command(message):
 
-    get_user(message.from_user)
-
-    send_balance(
-        message.chat.id,
-        message.from_user.id,
-        message
-    )
-
-
-# =========================================================
-# BALANCE BUTTON
-# =========================================================
-
-@bot.callback_query_handler(
-    func=lambda call: call.data.startswith("balance:")
-)
-def balance_callback(call):
-
-    owner_id = int(call.data.split(":")[1])
-
-    if call.from_user.id != owner_id:
-
-        bot.answer_callback_query(
-            call.id,
-            "🚫 ဒီ Balance က မင်းရဲ့ Balance မဟုတ်ပါ!",
-            show_alert=True
-        )
-
-        return
-
-    user = find_user(owner_id)
+    user = get_user(message.from_user)
 
     text = (
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        "       💰 BALANCE 💰\n"
-        "━━━━━━━━━━━━━━━━━━━━\n\n"
-
-        f"👤 {user['name']}\n\n"
-
-        f"💵 USD ┃ ${money(user['usd'])}\n"
-        f"💎 DIA ┃ {money(user['dia'])} 💎"
+        f"👤 {mention_user(message.from_user)}\n\n"
+        "💰 YOUR BALANCE\n\n"
+        f"💵 USD ┃ ${money(user.get('usd', 0))}\n"
+        f"💎 DIA ┃ {money(user.get('dia', 0))}💎"
     )
 
     markup = types.InlineKeyboardMarkup()
@@ -347,64 +195,35 @@ def balance_callback(call):
     markup.add(
         types.InlineKeyboardButton(
             "💵 USD ဝယ်ယူရန်",
-            callback_data=f"buy_usd_info:{owner_id}"
+            callback_data="buy_usd_info"
         )
     )
 
-    markup.add(
-        types.InlineKeyboardButton(
-            "🔄 Refresh Balance",
-            callback_data=f"balance:{owner_id}"
-        )
+    bot.reply_to(
+        message,
+        text,
+        reply_markup=markup,
+        parse_mode="HTML"
     )
-
-    bot.answer_callback_query(call.id)
-
-    try:
-        bot.edit_message_text(
-            text,
-            call.message.chat.id,
-            call.message.message_id,
-            reply_markup=markup
-        )
-    except Exception:
-        pass
 
 
 # =========================================================
-# BUY USD INFORMATION
+# USD BUY BUTTON
 # =========================================================
 
 @bot.callback_query_handler(
-    func=lambda call:
-    call.data.startswith("buy_usd_info:")
+    func=lambda call: call.data == "buy_usd_info"
 )
 def buy_usd_info(call):
-
-    owner_id = int(call.data.split(":")[1])
-
-    if call.from_user.id != owner_id:
-
-        bot.answer_callback_query(
-            call.id,
-            "🚫 ဒီခလုတ်ကို Balance ပိုင်ရှင်ပဲ သုံးနိုင်ပါတယ်!",
-            show_alert=True
-        )
-
-        return
 
     bot.answer_callback_query(call.id)
 
     text = (
         "💵 <b>USD ဝယ်ရန်</b>\n\n"
-
-        "💱 <b>လက်ရှိစျေးနှုန်း:</b> "
-        "100 USD = 1 💎\n\n"
-
+        "💱 <b>လက်ရှိစျေးနှုန်း:</b> 100 USD = 1💎\n\n"
         "📌 <code>/buyusd [USD amount]</code> "
-        "ဟုရိုက်ပြီး 💎 Star ဖြင့် USD ဝယ်နိုင်ပါတယ်။\n\n"
-
-        "<i>Example:</i> <code>/buyusd 1</code>"
+        "ဟုရိုက်ပြီး 💎 DIA ဖြင့် USD ဝယ်နိုင်ပါတယ်။\n\n"
+        "<i>Example:</i> <code>/buyusd 100</code>"
     )
 
     bot.send_message(
@@ -415,34 +234,95 @@ def buy_usd_info(call):
 
 
 # =========================================================
-# BUY USD COMMAND
+# BUY USD
+# 100 USD = 1 DIA
 # =========================================================
 
 @bot.message_handler(commands=["buyusd"])
-def buy_usd_command(message):
+def buyusd_command(message):
 
-    text = (
-        "💵 <b>USD ဝယ်ရန်</b>\n\n"
+    parts = message.text.split()
 
-        "💱 <b>လက်ရှိစျေးနှုန်း:</b> "
-        "100 USD = 1 💎\n\n"
+    if len(parts) < 2:
 
-        "📌 Telegram Stars Payment System ကို "
-        "နောက်အဆင့်မှာ ချိတ်ဆက်နိုင်ပါတယ်။\n\n"
+        bot.reply_to(
+            message,
+            "❌ USD amount ထည့်ပါ။\n\n"
+            "အသုံးပြုပုံ:\n"
+            "/buyusd 100"
+        )
 
-        "<i>Example:</i> "
-        "<code>/buyusd 100</code>"
+        return
+
+    try:
+        usd_amount = int(parts[1])
+    except ValueError:
+
+        bot.reply_to(
+            message,
+            "❌ USD amount မမှန်ပါ။"
+        )
+
+        return
+
+    if usd_amount <= 0:
+
+        bot.reply_to(
+            message,
+            "❌ Amount က 0 ထက်ကြီးရပါမယ်။"
+        )
+
+        return
+
+    # Must be multiple of 100
+    if usd_amount % 100 != 0:
+
+        bot.reply_to(
+            message,
+            "❌ USD amount ကို 100 ရဲ့ ဆတိုးပမာဏနဲ့ပဲ ဝယ်နိုင်ပါတယ်။\n\n"
+            "ဥပမာ - /buyusd 100\n"
+            "ဥပမာ - /buyusd 500"
+        )
+
+        return
+
+    dia_needed = usd_amount // 100
+
+    user = get_user(message.from_user)
+
+    if user.get("dia", 0) < dia_needed:
+
+        bot.reply_to(
+            message,
+            "❌ DIA မလုံလောက်ပါ။\n\n"
+            f"💎 လိုအပ်သော DIA — {money(dia_needed)}💎\n"
+            f"💎 လက်ရှိ DIA — {money(user.get('dia', 0))}💎"
+        )
+
+        return
+
+    update_balance(
+        message.from_user.id,
+        usd_change=usd_amount,
+        dia_change=-dia_needed
     )
+
+    new_user = get_user(message.from_user)
 
     bot.reply_to(
         message,
-        text,
+        "✅ <b>USD ဝယ်ယူပြီးပါပြီ!</b>\n\n"
+        f"💵 +${money(usd_amount)} USD\n"
+        f"💎 -{money(dia_needed)} DIA\n\n"
+        "💰 လက်ရှိ Balance\n"
+        f"💵 USD ┃ ${money(new_user.get('usd', 0))}\n"
+        f"💎 DIA ┃ {money(new_user.get('dia', 0))}💎",
         parse_mode="HTML"
     )
 
 
 # =========================================================
-# GAME COMMAND
+# GAME
 # =========================================================
 
 @bot.message_handler(commands=["game"])
@@ -450,30 +330,32 @@ def game_command(message):
 
     user = get_user(message.from_user)
 
-    owner_id = message.from_user.id
-
     text = (
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        "          🎰 CASINO 🎰\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-
-        f"👤 {mention_user(message.from_user)}\n\n"
-
-        f"💵 ${money(user['usd'])}"
-        "     "
-        f"💎 {money(user['dia'])}\n\n"
-
-        "🎰 SLOT MACHINE\n\n"
-
-        "🍀 ကံစမ်းပြီး ဆုကြေးရယူပါ!"
+        "╔════════════════════════════╗\n"
+        "        🎰 CASINO 🎰\n"
+        "╚════════════════════════════╝\n\n"
+        f"👤 {mention_user(message.from_user)}\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "💰 YOUR BALANCE\n"
+        f"💵 USD   ┃  ${money(user.get('usd', 0))}\n"
+        f"💎 DIA   ┃  {money(user.get('dia', 0))}💎\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "🎮 GAME CENTER\n\n"
+        "🎰 SLOT MACHINE\n"
+        "🍀 သင့်ကံကို စမ်းသပ်ပါ!\n"
+        "💰 လောင်းကြေးရွေးပြီး စတင်ကစားပါ\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "⚠️ ဒီ Game ကို ဖော်ထားတဲ့သူက\n"
+        "သူကိုယ်တိုင်ပဲ ကစားနိုင်ပါတယ်။\n\n"
+        "👇 PLAY NOW 👇"
     )
 
     markup = types.InlineKeyboardMarkup()
 
     markup.add(
         types.InlineKeyboardButton(
-            "🎰      PLAY SLOT MACHINE      🎰",
-            callback_data=f"game_slot:{owner_id}"
+            "🎰 PLAY SLOT MACHINE 🎰",
+            callback_data=f"game_slot:{message.from_user.id}"
         )
     )
 
@@ -486,137 +368,95 @@ def game_command(message):
 
 
 # =========================================================
-# GAME BUTTON
+# BET BUTTONS
+# 3 x 3
 # =========================================================
 
-@bot.callback_query_handler(
-    func=lambda call:
-    call.data.startswith("game:")
-)
-def game_callback(call):
-
-    owner_id = int(call.data.split(":")[1])
-
-    if call.from_user.id != owner_id:
-
-        bot.answer_callback_query(
-            call.id,
-            "🚫 ဒီ Casino က မင်းဖွင့်ထားတာမဟုတ်ပါ!\n\n"
-            "🎰 ကိုယ်တိုင် /game ရိုက်ပြီး ကစားပါ။",
-            show_alert=True
-        )
-
-        return
-
-    user = get_user(call.from_user)
-
-    text = (
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        "          🎰 CASINO 🎰\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-
-        f"👤 {mention_user(call.from_user)}\n\n"
-
-        f"💵 ${money(user['usd'])}"
-        "     "
-        f"💎 {money(user['dia'])}\n\n"
-
-        "🎰 SLOT MACHINE\n\n"
-
-        "🍀 ကံစမ်းပြီး ဆုကြေးရယူပါ!"
-    )
+def create_bet_keyboard():
 
     markup = types.InlineKeyboardMarkup()
 
-    markup.add(
+    # Row 1
+    markup.row(
         types.InlineKeyboardButton(
-            "🎰      PLAY SLOT MACHINE      🎰",
-            callback_data=f"game_slot:{owner_id}"
+            "💵 10 USD",
+            callback_data="slot_bet:10"
+        ),
+        types.InlineKeyboardButton(
+            "💵 100 USD",
+            callback_data="slot_bet:100"
+        ),
+        types.InlineKeyboardButton(
+            "💵 1K USD",
+            callback_data="slot_bet:1000"
         )
     )
 
-    bot.answer_callback_query(call.id)
-
-    bot.send_message(
-        call.message.chat.id,
-        text,
-        reply_markup=markup,
-        parse_mode="HTML"
-    )
-
-
-# =========================================================
-# BET AMOUNTS
-# =========================================================
-
-BET_AMOUNTS = [
-    10,
-    100,
-    1000,
-    10000,
-    100000,
-    300000,
-    500000,
-    1000000
-]
-
-
-def bet_name(amount):
-
-    names = {
-        10: "10 USD",
-        100: "100 USD",
-        1000: "1K USD",
-        10000: "10K USD",
-        100000: "100K USD",
-        300000: "300K USD",
-        500000: "500K USD",
-        1000000: "1M USD"
-    }
-
-    return names.get(
-        amount,
-        f"{money(amount)} USD"
-    )
-
-
-def create_bet_keyboard(owner_id):
-
-    markup = types.InlineKeyboardMarkup()
-
-    # Large buttons
-    for amount in BET_AMOUNTS:
-
-        markup.add(
-            types.InlineKeyboardButton(
-                f"💵        {bet_name(amount)}        💵",
-                callback_data=(
-                    f"slot_bet:{owner_id}:{amount}"
-                )
-            )
+    # Row 2
+    markup.row(
+        types.InlineKeyboardButton(
+            "💵 5K USD",
+            callback_data="slot_bet:5000"
+        ),
+        types.InlineKeyboardButton(
+            "💵 10K USD",
+            callback_data="slot_bet:10000"
+        ),
+        types.InlineKeyboardButton(
+            "💵 100K USD",
+            callback_data="slot_bet:100000"
         )
+    )
+
+    # Row 3
+    markup.row(
+        types.InlineKeyboardButton(
+            "💵 300K USD",
+            callback_data="slot_bet:300000"
+        ),
+        types.InlineKeyboardButton(
+            "💵 500K USD",
+            callback_data="slot_bet:500000"
+        ),
+        types.InlineKeyboardButton(
+            "💵 1M USD",
+            callback_data="slot_bet:1000000"
+        )
+    )
 
     return markup
 
 
 # =========================================================
 # PLAY SLOT
+# DELETE OLD GAME MESSAGE
 # =========================================================
 
 @bot.callback_query_handler(
-    func=lambda call:
-    call.data.startswith("game_slot:")
+    func=lambda call: call.data.startswith("game_slot:")
 )
-def slot_screen(call):
+def slot_button(call):
 
-    owner_id = int(call.data.split(":")[1])
+    try:
+        owner_id = int(
+            call.data.split(":")[1]
+        )
+    except Exception:
 
+        bot.answer_callback_query(
+            call.id,
+            "❌ Game error."
+        )
+
+        return
+
+    # Only creator can play
     if call.from_user.id != owner_id:
 
         bot.answer_callback_query(
             call.id,
-            "🚫 ဒီ Casino က မင်းဖွင့်ထားတာမဟုတ်ပါ!\n\n"
-            "ကိုယ်တိုင် /game ရိုက်ပြီး ကစားပါ 🎰",
+            "⚠️ ဒီ Game က သင့် Game မဟုတ်ပါဘူး။\n\n"
+            "/game ကို ကိုယ်တိုင်ဖော်ပါ။",
             show_alert=True
         )
 
@@ -626,45 +466,40 @@ def slot_screen(call):
 
     bot.answer_callback_query(call.id)
 
-    # DELETE OLD GAME SCREEN
+    # DELETE OLD GAME CENTER
     try:
+
         bot.delete_message(
             call.message.chat.id,
             call.message.message_id
         )
+
     except Exception:
         pass
 
+    # NEW BET SCREEN
     text = (
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        "       🎰 SLOT MACHINE 🎰\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-
+        "╔════════════════════════════╗\n"
+        "        🎰 SLOT MACHINE 🎰\n"
+        "╚════════════════════════════╝\n\n"
         f"👤 {mention_user(call.from_user)}\n\n"
-
-        f"💵 USD ┃ ${money(user['usd'])}\n"
-        f"💎 DIA ┃ {money(user['dia'])} 💎\n\n"
-
-        "🍇   🍋   7️⃣   BAR\n\n"
-
-        "🏆 777 → 30×\n"
-        "🏆 BAR BAR BAR → 10×\n"
-        "🏆 77🍇 / 🍇77 / 77BAR → 3×\n"
-        "🏆 🍇🍇🍇 / 🍋🍋🍋 → 5×\n\n"
-
-        "💰 လောင်းကြေးရွေးပါ 👇"
+        "💰 YOUR BALANCE\n"
+        f"💵 USD ┃ ${money(user.get('usd', 0))}\n"
+        f"💎 DIA ┃ {money(user.get('dia', 0))}💎\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "💵 လောင်းကြေးရွေးပါ 👇"
     )
 
     bot.send_message(
         call.message.chat.id,
         text,
-        reply_markup=create_bet_keyboard(owner_id),
+        reply_markup=create_bet_keyboard(),
         parse_mode="HTML"
     )
 
 
 # =========================================================
-# SLOT DECODER
+# SLOT COMBINATION
 # =========================================================
 
 def get_slot_combination(dice_value):
@@ -715,7 +550,7 @@ def get_slot_payout(dice_value):
     ):
         return 10
 
-    # 77 GRAPE = 3x
+    # 77🍇 = 3x
     if (
         left == "7️⃣"
         and middle == "7️⃣"
@@ -723,7 +558,7 @@ def get_slot_payout(dice_value):
     ):
         return 3
 
-    # GRAPE 77 = 3x
+    # 🍇77 = 3x
     if (
         left == "🍇"
         and middle == "7️⃣"
@@ -739,12 +574,21 @@ def get_slot_payout(dice_value):
     ):
         return 3
 
+    # 7🍇7 = loss
+    if (
+        left == "7️⃣"
+        and middle == "🍇"
+        and right == "7️⃣"
+    ):
+        return 0
+
     # Three identical fruits = 5x
     if left == middle == right:
 
         if left in ["🍇", "🍋"]:
             return 5
 
+    # Everything else = loss
     return 0
 
 
@@ -757,69 +601,61 @@ def send_slot_result(
     telegram_user,
     bet,
     multiplier,
-    dice_value,
-    owner_id
+    dice_value
 ):
+
+    current_user = get_user(
+        telegram_user
+    )
 
     left, middle, right = get_slot_combination(
         dice_value
     )
 
     combination = (
-        f"{left}   {middle}   {right}"
+        f"{left}  {middle}  {right}"
     )
-
-    user = find_user(telegram_user.id)
 
     if multiplier > 0:
 
         winnings = bet * multiplier
 
-        text = (
-            "━━━━━━━━━━━━━━━━━━━━\n"
-            "      🎰 SLOT RESULT 🎰\n"
-            "━━━━━━━━━━━━━━━━━━━━\n\n"
-
-            f"👤 {mention_user(telegram_user)}\n\n"
-
+        result_text = (
+            f"🎰 {mention_user(telegram_user)}\n\n"
             f"🎰 {combination}\n\n"
-
-            "🎉 ဒီတစ်ခါ နိုင်ပါတယ်!\n\n"
-
-            f"🏆 {multiplier}× WIN\n"
-            f"💰 အနိုင်ရငွေ ┃ ${money(winnings)}\n\n"
-
-            f"💵 USD ┃ ${money(user['usd'])}\n"
-            f"💎 DIA ┃ {money(user['dia'])} 💎\n\n"
-
-            "💰 နောက်ထပ် လောင်းကြေးရွေးပါ 👇"
+            "🎉 <b>ဒီတစ်ခါ နိုင်ပါတယ်!</b>\n"
+            f"🏆 ဆုကြေး — <b>{multiplier}×</b>\n"
+            f"💰 အနိုင်ရငွေ — <b>${money(winnings)} USD</b>\n\n"
+            "🍀 နောက်တစ်ကြိမ်လည်း ကံကောင်းပါစေ!\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "💰 လက်ရှိ Balance\n"
+            f"💵 USD ┃ ${money(current_user.get('usd', 0))}\n"
+            f"💎 DIA ┃ {money(current_user.get('dia', 0))}💎\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "💵 နောက်တစ်ကြိမ် ထိုးမယ့် လောင်းကြေးရွေးပါ 👇"
         )
 
     else:
 
-        text = (
-            "━━━━━━━━━━━━━━━━━━━━\n"
-            "      🎰 SLOT RESULT 🎰\n"
-            "━━━━━━━━━━━━━━━━━━━━\n\n"
-
-            f"👤 {mention_user(telegram_user)}\n\n"
-
+        result_text = (
+            f"🎰 {mention_user(telegram_user)}\n\n"
             f"🎰 {combination}\n\n"
-
-            "😢 ဒီတစ်ခါ ရှုံးသွားပါတယ်။\n\n"
-
-            f"💸 ရှုံးကြေး ┃ ${money(bet)}\n\n"
-
-            f"💵 USD ┃ ${money(user['usd'])}\n"
-            f"💎 DIA ┃ {money(user['dia'])} 💎\n\n"
-
-            "💰 နောက်ထပ် လောင်းကြေးရွေးပါ 👇"
+            "😢 <b>ဒီတစ်ခါ ရှုံးသွားပါတယ်။</b>\n"
+            f"💸 ရှုံးကြေး — <b>${money(bet)} USD</b>\n\n"
+            "🍀 နောက်တစ်ကြိမ် ကံကောင်းပါစေ!\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "💰 လက်ရှိ Balance\n"
+            f"💵 USD ┃ ${money(current_user.get('usd', 0))}\n"
+            f"💎 DIA ┃ {money(current_user.get('dia', 0))}💎\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "💵 နောက်တစ်ကြိမ် ထိုးမယ့် လောင်းကြေးရွေးပါ 👇"
         )
 
+    # Reply to dice animation
     bot.reply_to(
         dice_message,
-        text,
-        reply_markup=create_bet_keyboard(owner_id),
+        result_text,
+        reply_markup=create_bet_keyboard(),
         parse_mode="HTML"
     )
 
@@ -829,167 +665,96 @@ def send_slot_result(
 # =========================================================
 
 @bot.callback_query_handler(
-    func=lambda call:
-    call.data.startswith("slot_bet:")
+    func=lambda call: call.data.startswith("slot_bet:")
 )
 def slot_bet(call):
 
     try:
 
-        parts = call.data.split(":")
-
-        owner_id = int(parts[1])
-        bet = int(parts[2])
+        bet = int(
+            call.data.split(":")[1]
+        )
 
     except Exception:
 
         bot.answer_callback_query(
             call.id,
-            "❌ Error!"
+            "❌ လောင်းကြေးမမှန်ပါ။"
         )
 
         return
 
-    # OWNER ONLY
-    if call.from_user.id != owner_id:
+    user = get_user(
+        call.from_user
+    )
+
+    # Balance check
+    if user.get("usd", 0) < bet:
 
         bot.answer_callback_query(
             call.id,
-            "🚫 ဒီ Casino က မင်းဖွင့်ထားတာမဟုတ်ပါ!\n\n"
-            "ကိုယ်တိုင် /game ရိုက်ပြီး ကစားပါ 🎰",
+            "❌ Balance မလုံလောက်ပါ!",
             show_alert=True
         )
 
         return
 
-    if bet not in BET_AMOUNTS:
-
-        bot.answer_callback_query(
-            call.id,
-            "❌ Invalid Bet!"
-        )
-
-        return
-
-    user = get_user(call.from_user)
-
-    # BALANCE CHECK
-    if user["usd"] < bet:
-
-        bot.answer_callback_query(
-            call.id,
-            "❌ USD Balance မလုံလောက်ပါ!",
-            show_alert=True
-        )
-
-        return
-
-    # REMOVE BET
-    remove_usd(
+    # Deduct bet
+    update_balance(
         call.from_user.id,
-        bet
+        usd_change=-bet
     )
 
-    bot.answer_callback_query(
-        call.id,
-        "🎰 Good Luck! 🍀"
-    )
+    bot.answer_callback_query(call.id)
 
-    # REAL TELEGRAM SLOT
-    dice_message = bot.send_dice(
+    # Telegram native slot
+    dice_msg = bot.send_dice(
         call.message.chat.id,
         emoji="🎰"
     )
 
-    # WAIT FOR SLOT ANIMATION
+    # Wait for animation
     time.sleep(4)
 
-    dice_value = dice_message.dice.value
+    dice_value = dice_msg.dice.value
 
     multiplier = get_slot_payout(
         dice_value
     )
 
-    # ADD WINNINGS
+    # Add winnings
     if multiplier > 0:
 
         winnings = bet * multiplier
 
-        add_usd(
+        update_balance(
             call.from_user.id,
-            winnings
+            usd_change=winnings
         )
 
     send_slot_result(
-        dice_message,
+        dice_msg,
         call.from_user,
         bet,
         multiplier,
-        dice_value,
-        owner_id
+        dice_value
     )
 
 
 # =========================================================
-# GIFT KEYBOARD
+# /USD
+# OWNER ONLY
+# NOT IN MENU
 # =========================================================
 
-def gift_keyboard(
-    gift_type,
-    target_id,
-    amount,
-    owner_id
-):
+@bot.message_handler(commands=["usd"])
+def usd_command(message):
 
-    markup = types.InlineKeyboardMarkup()
-
-    markup.row(
-
-        types.InlineKeyboardButton(
-            "✅ CONFIRM",
-            callback_data=(
-                f"gift_confirm:"
-                f"{gift_type}:"
-                f"{target_id}:"
-                f"{amount}:"
-                f"{owner_id}"
-            )
-        ),
-
-        types.InlineKeyboardButton(
-            "❌ CANCEL",
-            callback_data=(
-                f"gift_cancel:{owner_id}"
-            )
-        )
-    )
-
-    return markup
-
-
-# =========================================================
-# GIFT USD
-# =========================================================
-
-@bot.message_handler(commands=["gift"])
-def gift_command(message):
-
-    if not is_owner(message.from_user):
+    if not is_owner(message):
 
         bot.reply_to(
             message,
-            "❌ Owner only!"
-        )
-
-        return
-
-    if not message.reply_to_message:
-
-        bot.reply_to(
-            message,
-            "အသုံးပြုပုံ:\n\n"
-            "User message ကို Reply လုပ်ပြီး\n"
-            "/gift 100"
+            "❌ Owner only."
         )
 
         return
@@ -1000,7 +765,8 @@ def gift_command(message):
 
         bot.reply_to(
             message,
-            "❌ Amount ထည့်ပါ။"
+            "အသုံးပြုပုံ\n\n"
+            "/usd 100"
         )
 
         return
@@ -1020,61 +786,222 @@ def gift_command(message):
 
         bot.reply_to(
             message,
+            "❌ Amount မှန်မှန်ထည့်ပါ။"
+        )
+
+        return
+
+    get_user(message.from_user)
+
+    update_balance(
+        message.from_user.id,
+        usd_change=amount
+    )
+
+    new_user = get_user(
+        message.from_user
+    )
+
+    bot.reply_to(
+        message,
+        f"✅ USD ${money(amount)} ထည့်ပြီးပါပြီ။\n\n"
+        f"💵 Balance ┃ ${money(new_user.get('usd', 0))}"
+    )
+
+
+# =========================================================
+# /DIA
+# OWNER ONLY
+# NOT IN MENU
+# =========================================================
+
+@bot.message_handler(commands=["dia"])
+def dia_command(message):
+
+    if not is_owner(message):
+
+        bot.reply_to(
+            message,
+            "❌ Owner only."
+        )
+
+        return
+
+    parts = message.text.split()
+
+    if len(parts) < 2:
+
+        bot.reply_to(
+            message,
+            "အသုံးပြုပုံ\n\n"
+            "/dia 100"
+        )
+
+        return
+
+    try:
+        amount = int(parts[1])
+    except ValueError:
+
+        bot.reply_to(
+            message,
             "❌ Amount မမှန်ပါ။"
+        )
+
+        return
+
+    if amount <= 0:
+
+        bot.reply_to(
+            message,
+            "❌ Amount မှန်မှန်ထည့်ပါ။"
+        )
+
+        return
+
+    get_user(message.from_user)
+
+    update_balance(
+        message.from_user.id,
+        dia_change=amount
+    )
+
+    new_user = get_user(
+        message.from_user
+    )
+
+    bot.reply_to(
+        message,
+        f"✅ Diamonds {money(amount)}💎 ထည့်ပြီးပါပြီ။\n\n"
+        f"💎 Balance ┃ {money(new_user.get('dia', 0))}💎"
+    )
+
+
+# =========================================================
+# PENDING GIFTS
+# =========================================================
+
+pending_gifts = {}
+
+
+# =========================================================
+# /GIFTUSD
+# PUBLIC
+# IN MENU
+# =========================================================
+
+@bot.message_handler(commands=["giftusd"])
+def giftusd_command(message):
+
+    if not message.reply_to_message:
+
+        bot.reply_to(
+            message,
+            "❌ User ရဲ့ message ကို Reply လုပ်ပြီး\n\n"
+            "/giftusd amount\n\n"
+            "ဥပမာ - /giftusd 100"
+        )
+
+        return
+
+    parts = message.text.split()
+
+    if len(parts) < 2:
+
+        bot.reply_to(
+            message,
+            "❌ Amount ထည့်ပါ။\n\n"
+            "ဥပမာ - /giftusd 100"
+        )
+
+        return
+
+    try:
+        amount = int(parts[1])
+    except ValueError:
+
+        bot.reply_to(
+            message,
+            "❌ Amount မမှန်ပါ။"
+        )
+
+        return
+
+    if amount <= 0:
+
+        bot.reply_to(
+            message,
+            "❌ Amount က 0 ထက်ကြီးရပါမယ်။"
         )
 
         return
 
     target = message.reply_to_message.from_user
 
+    if target.is_bot:
+
+        bot.reply_to(
+            message,
+            "❌ Bot ကို Gift မပေးနိုင်ပါ။"
+        )
+
+        return
+
     get_user(target)
 
+    gift_id = str(uuid.uuid4())
+
+    pending_gifts[gift_id] = {
+        "type": "usd",
+        "amount": amount,
+        "target_id": target.id,
+        "target_name": target.first_name or "User"
+    }
+
     text = (
-        "🎁 USD GIFT CONFIRM\n\n"
+        "🎁 <b>USD Gift အတည်ပြုရန်</b>\n\n"
+        f"👤 လက်ခံသူ — {mention_user(target)}\n"
+        f"💵 ပမာဏ — <b>${money(amount)} USD</b>\n\n"
+        "ဒီ Gift ကို ပေးမည်မှာ သေချာပါသလား?"
+    )
 
-        f"👤 {mention_user(target)}\n\n"
+    markup = types.InlineKeyboardMarkup()
 
-        f"💵 Amount ┃ ${money(amount)} USD\n\n"
-
-        "ဒီ Gift ကို ပေးမှာသေချာပါသလား?"
+    markup.row(
+        types.InlineKeyboardButton(
+            "✅ Confirm",
+            callback_data=f"gift_confirm:{gift_id}"
+        ),
+        types.InlineKeyboardButton(
+            "❌ Cancel",
+            callback_data=f"gift_cancel:{gift_id}"
+        )
     )
 
     bot.reply_to(
         message,
         text,
-        reply_markup=gift_keyboard(
-            "usd",
-            target.id,
-            amount,
-            message.from_user.id
-        ),
+        reply_markup=markup,
         parse_mode="HTML"
     )
 
 
 # =========================================================
-# GIFT DIA
+# /GIFTDIA
+# PUBLIC
+# IN MENU
 # =========================================================
 
 @bot.message_handler(commands=["giftdia"])
-def gift_dia_command(message):
-
-    if not is_owner(message.from_user):
-
-        bot.reply_to(
-            message,
-            "❌ Owner only!"
-        )
-
-        return
+def giftdia_command(message):
 
     if not message.reply_to_message:
 
         bot.reply_to(
             message,
-            "အသုံးပြုပုံ:\n\n"
-            "User message ကို Reply လုပ်ပြီး\n"
-            "/giftdia 100"
+            "❌ User ရဲ့ message ကို Reply လုပ်ပြီး\n\n"
+            "/giftdia amount\n\n"
+            "ဥပမာ - /giftdia 100"
         )
 
         return
@@ -1085,14 +1012,14 @@ def gift_dia_command(message):
 
         bot.reply_to(
             message,
-            "❌ Amount ထည့်ပါ။"
+            "❌ Amount ထည့်ပါ။\n\n"
+            "ဥပမာ - /giftdia 100"
         )
 
         return
 
     try:
         amount = int(parts[1])
-
     except ValueError:
 
         bot.reply_to(
@@ -1106,34 +1033,57 @@ def gift_dia_command(message):
 
         bot.reply_to(
             message,
-            "❌ Amount မမှန်ပါ။"
+            "❌ Amount က 0 ထက်ကြီးရပါမယ်။"
         )
 
         return
 
     target = message.reply_to_message.from_user
 
+    if target.is_bot:
+
+        bot.reply_to(
+            message,
+            "❌ Bot ကို Gift မပေးနိုင်ပါ။"
+        )
+
+        return
+
     get_user(target)
 
+    gift_id = str(uuid.uuid4())
+
+    pending_gifts[gift_id] = {
+        "type": "dia",
+        "amount": amount,
+        "target_id": target.id,
+        "target_name": target.first_name or "User"
+    }
+
     text = (
-        "🎁 DIA GIFT CONFIRM\n\n"
+        "🎁 <b>DIA Gift အတည်ပြုရန်</b>\n\n"
+        f"👤 လက်ခံသူ — {mention_user(target)}\n"
+        f"💎 ပမာဏ — <b>{money(amount)} DIA</b>\n\n"
+        "ဒီ Gift ကို ပေးမည်မှာ သေချာပါသလား?"
+    )
 
-        f"👤 {mention_user(target)}\n\n"
+    markup = types.InlineKeyboardMarkup()
 
-        f"💎 Amount ┃ {money(amount)} DIA\n\n"
-
-        "ဒီ Gift ကို ပေးမှာသေချာပါသလား?"
+    markup.row(
+        types.InlineKeyboardButton(
+            "✅ Confirm",
+            callback_data=f"gift_confirm:{gift_id}"
+        ),
+        types.InlineKeyboardButton(
+            "❌ Cancel",
+            callback_data=f"gift_cancel:{gift_id}"
+        )
     )
 
     bot.reply_to(
         message,
         text,
-        reply_markup=gift_keyboard(
-            "dia",
-            target.id,
-            amount,
-            message.from_user.id
-        ),
+        reply_markup=markup,
         parse_mode="HTML"
     )
 
@@ -1143,105 +1093,77 @@ def gift_dia_command(message):
 # =========================================================
 
 @bot.callback_query_handler(
-    func=lambda call:
-    call.data.startswith("gift_confirm:")
+    func=lambda call: call.data.startswith("gift_confirm:")
 )
 def gift_confirm(call):
 
-    try:
+    gift_id = call.data.split(
+        ":",
+        1
+    )[1]
 
-        parts = call.data.split(":")
+    gift = pending_gifts.get(
+        gift_id
+    )
 
-        gift_type = parts[1]
-        target_id = int(parts[2])
-        amount = int(parts[3])
-        owner_id = int(parts[4])
-
-    except Exception:
-
-        bot.answer_callback_query(
-            call.id,
-            "❌ Error!"
-        )
-
-        return
-
-    # OWNER ONLY
-    if call.from_user.id != owner_id:
+    if not gift:
 
         bot.answer_callback_query(
             call.id,
-            "🚫 ဒီ Gift ကိုဖန်တီးတဲ့သူပဲ Confirm လုပ်နိုင်ပါတယ်!",
+            "❌ ဒီ Gift က မရှိတော့ပါဘူး။",
             show_alert=True
         )
 
         return
 
-    target = find_user(target_id)
+    amount = gift["amount"]
+    target_id = gift["target_id"]
+    target_name = gift["target_name"]
 
-    if not target:
+    if gift["type"] == "usd":
 
-        bot.answer_callback_query(
-            call.id,
-            "❌ User မတွေ့ပါ!"
-        )
-
-        return
-
-    if gift_type == "usd":
-
-        add_usd(
+        update_balance(
             target_id,
-            amount
+            usd_change=amount
         )
 
-        target = find_user(target_id)
-
-        result = (
-            "━━━━━━━━━━━━━━━━━━━━\n"
-            "     🎁 GIFT SUCCESS\n"
-            "━━━━━━━━━━━━━━━━━━━━\n\n"
-
-            f"👤 {target['name']}\n\n"
-
-            f"💵 +${money(amount)} USD\n\n"
-
-            f"💰 Balance ┃ "
-            f"${money(target['usd'])}"
+        result_text = (
+            "🎁 <b>USD Gift ပေးပြီးပါပြီ!</b>\n\n"
+            f"👤 {target_name}\n"
+            f"💵 +${money(amount)} USD"
         )
 
     else:
 
-        add_dia(
+        update_balance(
             target_id,
-            amount
+            dia_change=amount
         )
 
-        target = find_user(target_id)
-
-        result = (
-            "━━━━━━━━━━━━━━━━━━━━\n"
-            "     🎁 GIFT SUCCESS\n"
-            "━━━━━━━━━━━━━━━━━━━━\n\n"
-
-            f"👤 {target['name']}\n\n"
-
-            f"💎 +{money(amount)} DIA\n\n"
-
-            f"💎 Balance ┃ "
-            f"{money(target['dia'])}"
+        result_text = (
+            "🎁 <b>Diamonds Gift ပေးပြီးပါပြီ!</b>\n\n"
+            f"👤 {target_name}\n"
+            f"💎 +{money(amount)} DIA"
         )
+
+    del pending_gifts[gift_id]
 
     bot.answer_callback_query(
         call.id,
         "✅ Gift ပေးပြီးပါပြီ!"
     )
 
-    bot.edit_message_text(
-        result,
-        call.message.chat.id,
-        call.message.message_id
-    )
+    try:
+
+        bot.edit_message_text(
+            result_text,
+            call.message.chat.id,
+            call.message.message_id,
+            parse_mode="HTML"
+        )
+
+    except Exception:
+        pass
 
 
 # =========================================================
@@ -1249,177 +1171,68 @@ def gift_confirm(call):
 # =========================================================
 
 @bot.callback_query_handler(
-    func=lambda call:
-    call.data.startswith("gift_cancel:")
+    func=lambda call: call.data.startswith("gift_cancel:")
 )
 def gift_cancel(call):
 
-    owner_id = int(
-        call.data.split(":")[1]
-    )
+    gift_id = call.data.split(
+        ":",
+        1
+    )[1]
 
-    if call.from_user.id != owner_id:
-
-        bot.answer_callback_query(
-            call.id,
-            "🚫 Gift ဖန်တီးတဲ့သူပဲ Cancel လုပ်နိုင်ပါတယ်!",
-            show_alert=True
-        )
-
-        return
+    if gift_id in pending_gifts:
+        del pending_gifts[gift_id]
 
     bot.answer_callback_query(
         call.id,
-        "❌ Gift Cancelled!"
+        "❌ Gift Cancel လုပ်ပြီးပါပြီ။"
     )
-
-    bot.edit_message_text(
-        "❌ Gift လုပ်ဆောင်မှုကို ပယ်ဖျက်လိုက်ပါပြီ။",
-        call.message.chat.id,
-        call.message.message_id
-    )
-
-
-# =========================================================
-# OWNER USD ADD
-# =========================================================
-
-@bot.message_handler(commands=["usd"])
-def usd_command(message):
-
-    if not is_owner(message.from_user):
-
-        bot.reply_to(
-            message,
-            "❌ Owner only!"
-        )
-
-        return
-
-    parts = message.text.split()
-
-    if len(parts) < 2:
-
-        bot.reply_to(
-            message,
-            "/usd 100"
-        )
-
-        return
 
     try:
-        amount = int(parts[1])
 
-    except ValueError:
-
-        bot.reply_to(
-            message,
-            "❌ Invalid amount!"
+        bot.edit_message_text(
+            "❌ <b>Gift Cancel လုပ်ပြီးပါပြီ။</b>",
+            call.message.chat.id,
+            call.message.message_id,
+            parse_mode="HTML"
         )
 
-        return
-
-    get_user(message.from_user)
-
-    add_usd(
-        message.from_user.id,
-        amount
-    )
-
-    user = find_user(
-        message.from_user.id
-    )
-
-    bot.reply_to(
-        message,
-        f"✅ ${money(amount)} USD Added!\n\n"
-        f"💵 Balance ┃ ${money(user['usd'])}"
-    )
-
-
-# =========================================================
-# OWNER DIA ADD
-# =========================================================
-
-@bot.message_handler(commands=["dia"])
-def dia_command(message):
-
-    if not is_owner(message.from_user):
-
-        bot.reply_to(
-            message,
-            "❌ Owner only!"
-        )
-
-        return
-
-    parts = message.text.split()
-
-    if len(parts) < 2:
-
-        bot.reply_to(
-            message,
-            "/dia 100"
-        )
-
-        return
-
-    try:
-        amount = int(parts[1])
-
-    except ValueError:
-
-        bot.reply_to(
-            message,
-            "❌ Invalid amount!"
-        )
-
-        return
-
-    get_user(message.from_user)
-
-    add_dia(
-        message.from_user.id,
-        amount
-    )
-
-    user = find_user(
-        message.from_user.id
-    )
-
-    bot.reply_to(
-        message,
-        f"✅ {money(amount)} DIA Added!\n\n"
-        f"💎 Balance ┃ {money(user['dia'])}"
-    )
+    except Exception:
+        pass
 
 
 # =========================================================
 # COMMAND MENU
+#
+# /giftusd and /giftdia ARE INCLUDED
+#
+# /usd and /dia are NOT included
+# /buyusd is NOT included
+# /gift does not exist
 # =========================================================
 
 def setup_commands():
 
     commands = [
-
         types.BotCommand(
             "start",
             "Bot စတင်ရန်"
         ),
-
         types.BotCommand(
             "balance",
             "Balance ကြည့်ရန်"
         ),
-
         types.BotCommand(
             "game",
-            "Casino Game ကစားရန်"
+            "Game ကစားရန်"
         ),
-
         types.BotCommand(
-            "buyusd",
-            "USD ဝယ်ယူရန်"
+            "giftusd",
+            "USD Gift ပေးရန်"
+        ),
+        types.BotCommand(
+            "giftdia",
+            "Diamond Gift ပေးရန်"
         )
     ]
 
@@ -1427,7 +1240,24 @@ def setup_commands():
 
 
 # =========================================================
-# START BOT
+# UNKNOWN SLASH COMMANDS
+#
+# Bot မှာ မရှိတဲ့ /command တွေကို
+# ဘာမှမပြန်ဘူး
+# =========================================================
+
+@bot.message_handler(
+    func=lambda message: (
+        message.text is not None
+        and message.text.startswith("/")
+    )
+)
+def unknown_command(message):
+    return
+
+
+# =========================================================
+# RUN
 # =========================================================
 
 if __name__ == "__main__":
