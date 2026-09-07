@@ -82,8 +82,8 @@ def start(message):
         )
     )
 
-    bot.send_message(
-        message.chat.id,
+    bot.reply_to(
+        message,
         text,
         reply_markup=keyboard,
         parse_mode="HTML"
@@ -108,8 +108,8 @@ def balance(message):
         f"💵 USD: <b>${user['usd']:,}USD</b>"
     )
 
-    bot.send_message(
-        message.chat.id,
+    bot.reply_to(
+        message,
         text,
         parse_mode="HTML"
     )
