@@ -7,13 +7,7 @@ import telebot
 from telebot import types
 from flask import Flask
 
-
-# =========================================================
-# CONFIG
-# =========================================================
-
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN is not set")
 
@@ -21,11 +15,6 @@ bot = telebot.TeleBot(BOT_TOKEN)
 
 OWNER_USERNAME = "Ruifineshyt"
 DATA_FILE = "bot_data.json"
-
-
-# =========================================================
-# FLASK
-# =========================================================
 
 app = Flask(__name__)
 
@@ -39,10 +28,6 @@ def run_flask():
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
 
-
-# =========================================================
-# DATA
-# =========================================================
 
 def load_data():
     if not os.path.exists(DATA_FILE):
@@ -83,10 +68,6 @@ def get_user(user_id, first_name="User", username=None):
     return data[user_id]
 
 
-# =========================================================
-# HELPERS
-# =========================================================
-
 def mention_user(user):
     name = user.first_name or "User"
     return f'<a href="tg://user?id={user.id}">{name}</a>'
@@ -105,10 +86,6 @@ def money(value):
     return f"{value:,}"
 
 
-# =========================================================
-# BALANCE
-# =========================================================
-
 def balance_text(user, user_id):
     return (
         f"👤 {user['name']} ({user_id}) ၏ လက်ကျန်ငွေ\n\n"
@@ -117,13 +94,12 @@ def balance_text(user, user_id):
     )
 
 
-# =========================================================
+# =========================
 # START
-# =========================================================
+# =========================
 
 @bot.message_handler(commands=["start"])
 def start_command(message):
-
     user = get_user(
         message.from_user.id,
         message.from_user.first_name,
@@ -155,13 +131,12 @@ def start_command(message):
     )
 
 
-# =========================================================
+# =========================
 # BALANCE
-# =========================================================
+# =========================
 
 @bot.message_handler(commands=["balance"])
 def balance_command(message):
-
     user = get_user(
         message.from_user.id,
         message.from_user.first_name,
@@ -174,13 +149,12 @@ def balance_command(message):
     )
 
 
-# =========================================================
+# =========================
 # GAME
-# =========================================================
+# =========================
 
 @bot.message_handler(commands=["game"])
 def game_command(message):
-
     user = get_user(
         message.from_user.id,
         message.from_user.first_name,
@@ -191,32 +165,21 @@ def game_command(message):
         "╔════════════════════════╗\n"
         "🎮 GAME CENTER 🎮\n"
         "╚════════════════════════╝\n\n"
-
         f"👤 {mention_user(message.from_user)}\n\n"
-
         "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-
         "🎰 ဂိမ်းကမ္ဘာမှ ကြိုဆိုပါတယ်!\n\n"
-
         "ဒီနေရာမှာ သင့်ကံကို စမ်းသပ်ပြီး 🎯\n"
         "စိတ်လှုပ်ရှားဖွယ် Game များကို\n"
         "အပျော်တမ်း ကစားနိုင်ပါတယ်! 🔥\n\n"
-
         "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-
         "💰 သင့်လက်ရှိ Balance\n\n"
-
         f"💵 USD ┃ ${money(user['usd'])}\n"
         f"💎 DIA ┃ {money(user['dia'])}\n\n"
-
         "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-
         "🎮 လက်ရှိ ကစားနိုင်သော Game\n\n"
-
         "🎰 SLOT MACHINE\n"
         "└ 🍒 🍋 🍇 7️⃣ BAR\n"
         "└ သင့်ကံကို စမ်းသပ်လိုက်ပါ! 🍀\n\n"
-
         "👇 အောက်က Game ကိုရွေးပြီး စတင်ကစားပါ!"
     )
 
@@ -237,9 +200,9 @@ def game_command(message):
     )
 
 
-# =========================================================
-# BET BUTTONS
-# =========================================================
+# =========================
+# SLOT BET
+# =========================
 
 BET_AMOUNTS = [
     10,
@@ -254,7 +217,6 @@ BET_AMOUNTS = [
 
 
 def bet_name(amount):
-
     names = {
         10: "10 USD",
         100: "100 USD",
@@ -270,7 +232,6 @@ def bet_name(amount):
 
 
 def create_bet_keyboard():
-
     markup = types.InlineKeyboardMarkup()
 
     row = []
@@ -291,9 +252,9 @@ def create_bet_keyboard():
     return markup
 
 
-# =========================================================
-# SLOT OPEN
-# =========================================================
+# =========================
+# SLOT BUTTON
+# =========================
 
 @bot.callback_query_handler(func=lambda call: call.data == "game_slot")
 def slot_button(call):
@@ -324,9 +285,9 @@ def slot_button(call):
     )
 
 
-# =========================================================
-# TELEGRAM SLOT RESULT
-# =========================================================
+# =========================
+# SLOT DECODER
+# =========================
 
 def get_slot_combination(dice_value):
 
@@ -350,9 +311,9 @@ def get_slot_combination(dice_value):
     )
 
 
-# =========================================================
-# PAYOUT
-# =========================================================
+# =========================
+# SLOT PAYOUT
+# =========================
 
 def get_slot_payout(dice_value):
 
@@ -390,7 +351,7 @@ def get_slot_payout(dice_value):
     ):
         return 3
 
-    # 7🍇7 = NO WIN
+    # 7🍇7 = No Win
     if (
         left == "7️⃣"
         and middle == "🍇"
@@ -398,19 +359,19 @@ def get_slot_payout(dice_value):
     ):
         return 0
 
-    # Fruit must be THREE identical fruits
+    # Three same fruits = 5x
     if left == middle == right:
 
         if left in ["🍇", "🍋", "🍒"]:
             return 5
 
-    # Two fruits only = NO WIN
+    # Any other result = Lose
     return 0
 
 
-# =========================================================
-# SLOT RESULT MESSAGE
-# =========================================================
+# =========================
+# SLOT RESULT
+# =========================
 
 def send_slot_result(
     chat_id,
@@ -430,25 +391,17 @@ def send_slot_result(
 
         result_text = (
             "🎰 SLOT RESULT 🎰\n\n"
-
             f"👤 {user['name']}\n\n"
-
             f"🎰 {combination}\n\n"
-
             "🎉 ဒီတစ်ခါ နိုင်ပါတယ်!\n"
             f"🏆 ဆုကြေး — {multiplier}×\n"
             f"💰 အနိုင်ရငွေ — ${money(winnings)} USD\n\n"
-
             "🍀 နောက်တစ်ကြိမ်လည်း ကံကောင်းပါစေ!\n\n"
-
             "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-
             "💰 လက်ရှိ Balance\n"
             f"💵 USD ┃ ${money(user['usd'])}\n"
             f"💎 DIA ┃ {money(user['dia'])}\n\n"
-
             "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-
             "💵 နောက်တစ်ကြိမ် ထိုးမယ့် လောင်းကြေးရွေးပါ 👇"
         )
 
@@ -456,24 +409,16 @@ def send_slot_result(
 
         result_text = (
             "🎰 SLOT RESULT 🎰\n\n"
-
             f"👤 {user['name']}\n\n"
-
             f"🎰 {combination}\n\n"
-
             "😢 ဒီတစ်ခါ ရှုံးသွားပါတယ်။\n"
             f"💸 ရှုံးကြေး — ${money(bet)} USD\n\n"
-
             "🍀 နောက်တစ်ကြိမ် ကံကောင်းပါစေ!\n\n"
-
             "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-
             "💰 လက်ရှိ Balance\n"
             f"💵 USD ┃ ${money(user['usd'])}\n"
             f"💎 DIA ┃ {money(user['dia'])}\n\n"
-
             "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-
             "💵 နောက်တစ်ကြိမ် ထိုးမယ့် လောင်းကြေးရွေးပါ 👇"
         )
 
@@ -484,9 +429,9 @@ def send_slot_result(
     )
 
 
-# =========================================================
-# SLOT BET
-# =========================================================
+# =========================
+# SLOT BET ACTION
+# =========================
 
 @bot.callback_query_handler(
     func=lambda call: call.data.startswith("slot_bet:")
@@ -494,9 +439,8 @@ def send_slot_result(
 def slot_bet(call):
 
     try:
-        bet = int(
-            call.data.split(":")[1]
-        )
+        bet = int(call.data.split(":")[1])
+
     except Exception:
 
         bot.answer_callback_query(
@@ -512,7 +456,6 @@ def slot_bet(call):
         call.from_user.username
     )
 
-    # Balance check
     if user["usd"] < bet:
 
         bot.answer_callback_query(
@@ -525,28 +468,23 @@ def slot_bet(call):
 
     # Deduct bet
     user["usd"] -= bet
+
     save_data()
 
     bot.answer_callback_query(call.id)
 
-    # =====================================================
-    # REAL TELEGRAM SLOT ANIMATION
-    # =====================================================
-
+    # Telegram Slot Animation
     dice_msg = bot.send_dice(
         call.message.chat.id,
         emoji="🎰"
     )
 
-    # Animation အရမ်းမနှေးအောင်
-    time.sleep(1.2)
+    # Result after 2 seconds
+    time.sleep(2)
 
     dice_value = dice_msg.dice.value
 
-    # Payout
-    multiplier = get_slot_payout(
-        dice_value
-    )
+    multiplier = get_slot_payout(dice_value)
 
     # Add winnings
     if multiplier > 0:
@@ -557,14 +495,12 @@ def slot_bet(call):
 
         save_data()
 
-    # Refresh user
     user = get_user(
         call.from_user.id,
         call.from_user.first_name,
         call.from_user.username
     )
 
-    # Result
     send_slot_result(
         call.message.chat.id,
         user,
@@ -574,9 +510,9 @@ def slot_bet(call):
     )
 
 
-# =========================================================
+# =========================
 # OWNER USD
-# =========================================================
+# =========================
 
 @bot.message_handler(commands=["usd"])
 def usd_command(message):
@@ -603,6 +539,7 @@ def usd_command(message):
 
     try:
         amount = int(parts[1])
+
     except ValueError:
 
         bot.reply_to(
@@ -629,9 +566,9 @@ def usd_command(message):
     )
 
 
-# =========================================================
+# =========================
 # OWNER DIA
-# =========================================================
+# =========================
 
 @bot.message_handler(commands=["dia"])
 def dia_command(message):
@@ -658,6 +595,7 @@ def dia_command(message):
 
     try:
         amount = int(parts[1])
+
     except ValueError:
 
         bot.reply_to(
@@ -684,9 +622,9 @@ def dia_command(message):
     )
 
 
-# =========================================================
+# =========================
 # GIFT USD
-# =========================================================
+# =========================
 
 @bot.message_handler(commands=["gift"])
 def gift_command(message):
@@ -725,6 +663,7 @@ def gift_command(message):
 
     try:
         amount = int(parts[1])
+
     except ValueError:
 
         bot.reply_to(
@@ -755,9 +694,9 @@ def gift_command(message):
     )
 
 
-# =========================================================
+# =========================
 # GIFT DIA
-# =========================================================
+# =========================
 
 @bot.message_handler(commands=["giftdia"])
 def giftdia_command(message):
@@ -796,6 +735,7 @@ def giftdia_command(message):
 
     try:
         amount = int(parts[1])
+
     except ValueError:
 
         bot.reply_to(
@@ -826,9 +766,9 @@ def giftdia_command(message):
     )
 
 
-# =========================================================
+# =========================
 # COMMAND MENU
-# =========================================================
+# =========================
 
 def setup_commands():
 
@@ -858,9 +798,9 @@ def setup_commands():
     bot.set_my_commands(commands)
 
 
-# =========================================================
+# =========================
 # RUN
-# =========================================================
+# =========================
 
 if __name__ == "__main__":
 
@@ -881,4 +821,4 @@ if __name__ == "__main__":
         skip_pending=True,
         timeout=30,
         long_polling_timeout=30
-)
+    )
