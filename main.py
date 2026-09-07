@@ -239,7 +239,6 @@ def play_animation_game(call):
             bot.send_message(call.message.chat.id, f"🎰 {res}\n\n💔 yaung ရှုံးပါသည်! (-{bet:,.0f} USD, လက်ကျန်: ${new_usd:,.0f} USD)")
             
     elif g_type == "rps":
-        choices = ["ကျောက်ခဲ ✊",္ "ခရု ✌️", "စက္ကူ ✋"]
         bot.send_message(call.message.chat.id, f"✊ ✌️ ✋ RPS ဂိမ်းအတွက် yaung လောင်းကြေး ${bet:,} USD တင်ပြီးပါပြီ။ (နောက်ထပ် update ဆက်လုပ်ပေးပါမည်)")
 
 if __name__ == "__main__":
