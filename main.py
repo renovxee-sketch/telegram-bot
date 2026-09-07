@@ -23,6 +23,14 @@ app = Flask(__name__)
 
 
 # ==================================================
+# OWNER ID
+# ==================================================
+
+# ဒီနေရာမှာ သင့် Telegram ID ထည့်ပါ
+OWNER_ID = 8342585453
+
+
+# ==================================================
 # USER DATA
 # ==================================================
 
@@ -112,6 +120,122 @@ def balance(message):
         message,
         text,
         parse_mode="HTML"
+    )
+
+
+# ==================================================
+# OWNER — ADD USD
+# ==================================================
+
+@bot.message_handler(commands=["usd"])
+def add_usd(message):
+
+    if message.from_user.id != OWNER_ID:
+
+        bot.reply_to(
+            message,
+            "❌ ဒီ Command ကို Owner သာ အသုံးပြုနိုင်ပါတယ်။"
+        )
+        return
+
+    parts = message.text.split()
+
+    if len(parts) != 2:
+
+        bot.reply_to(
+            message,
+            "❌ အသုံးပြုပုံ:\n\n"
+            "/usd ပမာဏ\n\n"
+            "ဥပမာ: /usd 1000000"
+        )
+        return
+
+    try:
+        amount = int(parts[1])
+
+    except ValueError:
+
+        bot.reply_to(
+            message,
+            "❌ USD ပမာဏကို နံပါတ်နဲ့ ထည့်ပါ။"
+        )
+        return
+
+    if amount <= 0:
+
+        bot.reply_to(
+            message,
+            "❌ 0 ထက်ကြီးတဲ့ ပမာဏ ထည့်ပါ။"
+        )
+        return
+
+    user = get_user(OWNER_ID)
+
+    user["usd"] += amount
+
+    bot.reply_to(
+        message,
+        f"✅ USD ထည့်ပြီးပါပြီ!\n\n"
+        f"💵 ထည့်ငွေ: +${amount:,}\n"
+        f"💰 လက်ကျန်: ${user['usd']:,}USD"
+    )
+
+
+# ==================================================
+# OWNER — ADD DIAMOND
+# ==================================================
+
+@bot.message_handler(commands=["dia"])
+def add_diamond(message):
+
+    if message.from_user.id != OWNER_ID:
+
+        bot.reply_to(
+            message,
+            "❌ ဒီ Command ကို Owner သာ အသုံးပြုနိုင်ပါတယ်။"
+        )
+        return
+
+    parts = message.text.split()
+
+    if len(parts) != 2:
+
+        bot.reply_to(
+            message,
+            "❌ အသုံးပြုပုံ:\n\n"
+            "/dia ပမာဏ\n\n"
+            "ဥပမာ: /dia 1000000"
+        )
+        return
+
+    try:
+        amount = int(parts[1])
+
+    except ValueError:
+
+        bot.reply_to(
+            message,
+            "❌ Diamond ပမာဏကို နံပါတ်နဲ့ ထည့်ပါ။"
+        )
+        return
+
+    if amount <= 0:
+
+        bot.reply_to(
+            message,
+            "❌ 0 ထက်ကြီးတဲ့ ပမာဏ ထည့်ပါ။"
+        )
+        return
+
+    user = get_user(OWNER_ID)
+
+    user["dia"] += amount
+
+    bot.reply_to(
+        message,
+        f"✅ Diamond ထည့်ပြီးပါပြီ!\n\n"
+        f"💎 ထည့်ပမာဏ: +{amount:,}\n"
+        f"💎 လက်ကျန်: {user['dia']:,} Diamonds"
     )
 
 
