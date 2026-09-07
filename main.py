@@ -10,7 +10,7 @@ TOKEN = os.environ.get("BOT_TOKEN", "your_bot_token")
 MONGO_URL = os.environ.get("MONGO_URL", "your_mongo_url")
 
 # yaung ရဲ့ Telegram User ID ကို ဒီမှာ ထည့်ပါ
-OWNER_ID = 8032394583  # <--- ဒီ 0 နေရာမှာ yaung ရဲ့ ID အမှန်ကို ထည့်ပါ
+OWNER_ID = 0  # <--- ဒီ 0 နေရာမှာ yaung ရဲ့ ID အမှန်ကို ထည့်ပါ
 
 bot = telebot.TeleBot(TOKEN)
 
