@@ -5,10 +5,7 @@ import telebot
 
 from flask import Flask
 from threading import Thread
-from telebot.types import (
-    InlineKeyboardMarkup,
-    InlineKeyboardButton
-)
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 
 # ============================================================
@@ -22,13 +19,14 @@ if not BOT_TOKEN:
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
+# Owner username
 OWNER_USERNAME = "Ruifineshyt"
 
 DATA_FILE = "bot_data.json"
 
 
 # ============================================================
-# DATA
+# DATA SYSTEM
 # ============================================================
 
 def load_data():
@@ -68,7 +66,6 @@ def get_user(user_id, first_name=None):
             "usd": 0,
             "dia": 0
         }
-
         save_data()
 
     if first_name:
@@ -84,7 +81,7 @@ def get_user(user_id, first_name=None):
 
 
 # ============================================================
-# OWNER
+# OWNER CHECK
 # ============================================================
 
 def is_owner(message):
@@ -98,7 +95,23 @@ def is_owner(message):
 
 
 # ============================================================
-# BOT COMMAND MENU
+# USER MENTION
+# ============================================================
+
+def user_mention(user):
+
+    name = user.first_name or "User"
+    user_id = user.id
+
+    return (
+        f'<a href="tg://user?id={user_id}">'
+        f'{name}'
+        f'</a>'
+    )
+
+
+# ============================================================
+# COMMAND MENU
 # ============================================================
 
 def set_commands():
@@ -117,36 +130,17 @@ def set_commands():
             "Game Center"
         ),
         telebot.types.BotCommand(
-            "usd",
-            "Add USD"
-        ),
-        telebot.types.BotCommand(
-            "dia",
-            "Add Diamonds"
-        ),
-        telebot.types.BotCommand(
-            "giftusd",
+            "gift",
             "Gift USD"
+        ),
+        telebot.types.BotCommand(
+            "giftdia",
+            "Gift Diamonds"
         )
     ]
 
+    # /usd နဲ့ /dia ကို menu ထဲ မထည့်ထားပါ
     bot.set_my_commands(commands)
-
-
-# ============================================================
-# USER MENTION
-# ============================================================
-
-def user_mention(user):
-
-    name = user.first_name or "User"
-    user_id = user.id
-
-    return (
-        f'<a href="tg://user?id={user_id}">'
-        f'{name}'
-        f'</a>'
-    )
 
 
 # ============================================================
@@ -284,7 +278,7 @@ def game(message):
 
 
 # ============================================================
-# SLOT BET KEYBOARD
+# SLOT BET BUTTONS
 # ============================================================
 
 def slot_bet_keyboard():
@@ -389,11 +383,13 @@ def slot_bet(call):
             )
         )
     except Exception:
+
         bot.answer_callback_query(
             call.id,
             "❌ Bet မမှန်ပါ!",
             show_alert=True
         )
+
         return
 
     user = get_user(
@@ -405,10 +401,7 @@ def slot_bet(call):
         user.get("usd", 0)
     )
 
-    # --------------------------------------------------------
-    # BALANCE CHECK
-    # --------------------------------------------------------
-
+    # Balance မလောက်ရင်
     if balance < bet:
 
         bot.answer_callback_query(
@@ -419,9 +412,9 @@ def slot_bet(call):
 
         return
 
-    # --------------------------------------------------------
-    # DEDUCT BET
-    # --------------------------------------------------------
+    # ========================================================
+    # BET ဖြတ်
+    # ========================================================
 
     user["usd"] = balance - bet
 
@@ -432,27 +425,23 @@ def slot_bet(call):
         "🎰 Game စတင်ပါပြီ!"
     )
 
-    # --------------------------------------------------------
-    # TELEGRAM REAL SLOT ANIMATION
-    # --------------------------------------------------------
+    # ========================================================
+    # TELEGRAM REAL SLOT
+    # ========================================================
 
     dice_message = bot.send_dice(
         call.message.chat.id,
         emoji="🎰"
     )
 
-    # Telegram client မှာ animation ပြရန်
+    # Animation ကြည့်ရန် ခဏစောင့်
     time.sleep(4)
 
-    # --------------------------------------------------------
-    # TELEGRAM SLOT VALUE
-    # --------------------------------------------------------
+    # ========================================================
+    # RESULT
+    # ========================================================
 
     dice_value = dice_message.dice.value
-
-    # --------------------------------------------------------
-    # RESULT
-    # --------------------------------------------------------
 
     if dice_value in [1, 22, 43, 64]:
 
@@ -479,9 +468,9 @@ def slot_bet(call):
 🍀 နောက်တစ်ကြိမ် ကံကောင်းပါစေ!
 """
 
-    # --------------------------------------------------------
+    # ========================================================
     # NEW RESULT MESSAGE
-    # --------------------------------------------------------
+    # ========================================================
 
     result_text = f"""
 🎰 SLOT RESULT 🎰
@@ -566,7 +555,7 @@ def add_usd(message):
 
 
 # ============================================================
-# OWNER DIAMONDS
+# OWNER DIA
 # ============================================================
 
 @bot.message_handler(commands=["dia"])
@@ -627,10 +616,11 @@ def add_dia(message):
 
 
 # ============================================================
-# GIFT USD
+# OWNER GIFT USD
+# /gift
 # ============================================================
 
-@bot.message_handler(commands=["giftusd"])
+@bot.message_handler(commands=["gift"])
 def gift_usd(message):
 
     if not is_owner(message):
@@ -643,7 +633,7 @@ def gift_usd(message):
             """
 ❌ User ရဲ့ Message ကို Reply လုပ်ပြီး
 
-/giftusd 1000
+/gift 1000
 
 လို့ ရိုက်ပါ။
 """
@@ -657,7 +647,7 @@ def gift_usd(message):
 
         bot.reply_to(
             message,
-            "အသုံးပြုပုံ:\n/giftusd 1000"
+            "အသုံးပြုပုံ:\n/gift 1000"
         )
 
         return
@@ -700,7 +690,81 @@ ${amount:,} USD ပေးပြီးပါပြီ!
 
 
 # ============================================================
-# FLASK FOR RENDER
+# OWNER GIFT DIAMONDS
+# /giftdia
+# ============================================================
+
+@bot.message_handler(commands=["giftdia"])
+def gift_dia(message):
+
+    if not is_owner(message):
+        return
+
+    if not message.reply_to_message:
+
+        bot.reply_to(
+            message,
+            """
+❌ User ရဲ့ Message ကို Reply လုပ်ပြီး
+
+/giftdia 1000
+
+လို့ ရိုက်ပါ။
+"""
+        )
+
+        return
+
+    parts = message.text.split()
+
+    if len(parts) < 2:
+
+        bot.reply_to(
+            message,
+            "အသုံးပြုပုံ:\n/giftdia 1000"
+        )
+
+        return
+
+    try:
+        amount = int(parts[1])
+
+    except Exception:
+
+        bot.reply_to(
+            message,
+            "❌ Amount မှားနေပါတယ်!"
+        )
+
+        return
+
+    if amount <= 0:
+        return
+
+    target = message.reply_to_message.from_user
+
+    target_user = get_user(
+        target.id,
+        target.first_name
+    )
+
+    target_user["dia"] += amount
+
+    save_data()
+
+    bot.reply_to(
+        message,
+        f"""
+🎁 {target.first_name} ကို
+{amount:,}💎 Diamonds ပေးပြီးပါပြီ!
+
+💎 Balance: {target_user["dia"]:,}💎
+"""
+    )
+
+
+# ============================================================
+# FLASK - RENDER
 # ============================================================
 
 app = Flask(__name__)
@@ -728,7 +792,7 @@ def run_server():
 
 
 # ============================================================
-# RUN BOT
+# START BOT
 # ============================================================
 
 if __name__ == "__main__":
@@ -738,13 +802,11 @@ if __name__ == "__main__":
         daemon=True
     ).start()
 
-    # Telegram webhook ရှိရင် ဖယ်
     try:
         bot.remove_webhook()
     except Exception as e:
         print("Webhook:", e)
 
-    # Command menu
     try:
         set_commands()
     except Exception as e:
