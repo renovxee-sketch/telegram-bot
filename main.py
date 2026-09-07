@@ -64,9 +64,22 @@ def is_owner(message):
     return False
 
 
-@app.route("/")
-def home():
-    return "Game Bot is running!"
+# ==================================================
+# BOT MENU
+# ==================================================
+
+def set_commands():
+
+    commands = [
+        telebot.types.BotCommand("start", "Start Bot"),
+        telebot.types.BotCommand("balance", "Check Balance"),
+        telebot.types.BotCommand("game", "Game Menu"),
+        telebot.types.BotCommand("usd", "Add USD"),
+        telebot.types.BotCommand("dia", "Add Diamonds"),
+        telebot.types.BotCommand("giftusd", "Gift USD")
+    ]
+
+    bot.set_my_commands(commands)
 
 
 # ==================================================
@@ -317,7 +330,7 @@ def gift_usd(message):
     except ValueError:
         bot.reply_to(
             message,
-            "❌ ပမာဏကို နံပါတ်နဲ့ ထည့်ပါ။"
+            "❌ USD ပမာဏကို နံပါတ်နဲ့ ထည့်ပါ။"
         )
         return
 
@@ -329,82 +342,134 @@ def gift_usd(message):
         return
 
     target = message.reply_to_message.from_user
-    user = get_user(target.id)
 
-    user["usd"] += amount
-    save_data()
+    keyboard = InlineKeyboardMarkup()
+
+    keyboard.row(
+        InlineKeyboardButton(
+            "✅ Confirm",
+            callback_data=f"confirm_usd:{target.id}:{amount}"
+        ),
+        InlineKeyboardButton(
+            "❌ Cancel",
+            callback_data="cancel_gift"
+        )
+    )
 
     bot.reply_to(
         message,
-        f"🎁 USD Gift ပေးပြီးပါပြီ!\n\n"
+        f"🎁 <b>USD Gift အတည်ပြုရန်</b>\n\n"
         f"👤 {target.first_name}\n"
-        f"💵 +${amount:,}USD"
+        f"💵 ပေးမည့်ပမာဏ: <b>${amount:,} USD</b>\n\n"
+        f"အောက်က ခလုတ်ကိုနှိပ်ပြီး အတည်ပြုပါ။",
+        reply_markup=keyboard,
+        parse_mode="HTML"
     )
 
 
 # ==================================================
-# GIFT DIAMOND
+# CONFIRM USD
 # ==================================================
 
-@bot.message_handler(commands=["giftdia"])
-def gift_diamond(message):
+@bot.callback_query_handler(
+    func=lambda call: call.data.startswith("confirm_usd:")
+)
+def confirm_usd(call):
 
-    if not is_owner(message):
-        bot.reply_to(
-            message,
-            "❌ Owner သာ အသုံးပြုနိုင်ပါတယ်။"
+    if not call.from_user.username:
+        bot.answer_callback_query(
+            call.id,
+            "❌ Owner သာ Confirm လုပ်နိုင်ပါတယ်။",
+            show_alert=True
         )
         return
 
-    if not message.reply_to_message:
-        bot.reply_to(
-            message,
-            "❌ ပေးမယ့်သူရဲ့ Message ကို Reply လုပ်ပါ။"
-        )
-        return
-
-    parts = message.text.split()
-
-    if len(parts) != 2:
-        bot.reply_to(
-            message,
-            "❌ ဥပမာ - /giftdia 1000"
+    if call.from_user.username.lower() != OWNER_USERNAME.lower():
+        bot.answer_callback_query(
+            call.id,
+            "❌ Owner သာ Confirm လုပ်နိုင်ပါတယ်။",
+            show_alert=True
         )
         return
 
     try:
-        amount = int(parts[1])
-    except ValueError:
-        bot.reply_to(
-            message,
-            "❌ ပမာဏကို နံပါတ်နဲ့ ထည့်ပါ။"
+        _, target_id, amount = call.data.split(":")
+        target_id = int(target_id)
+        amount = int(amount)
+    except:
+        bot.answer_callback_query(
+            call.id,
+            "❌ Error ဖြစ်သွားပါတယ်။",
+            show_alert=True
         )
         return
 
-    if amount <= 0:
-        bot.reply_to(
-            message,
-            "❌ 0 ထက်ကြီးတဲ့ ပမာဏထည့်ပါ။"
-        )
-        return
+    user = get_user(target_id)
 
-    target = message.reply_to_message.from_user
-    user = get_user(target.id)
-
-    user["dia"] += amount
+    user["usd"] += amount
     save_data()
 
-    bot.reply_to(
-        message,
-        f"🎁 Diamond Gift ပေးပြီးပါပြီ!\n\n"
-        f"👤 {target.first_name}\n"
-        f"💎 +{amount:,} Diamonds"
+    bot.answer_callback_query(
+        call.id,
+        "✅ USD Gift ပေးပြီးပါပြီ!"
+    )
+
+    bot.edit_message_text(
+        f"🎁 <b>USD Gift ပေးပြီးပါပြီ!</b>\n\n"
+        f"👤 {call.message.reply_to_message.from_user.first_name if call.message.reply_to_message else 'User'}\n"
+        f"💵 +${amount:,} USD",
+        call.message.chat.id,
+        call.message.message_id,
+        parse_mode="HTML"
+    )
+
+
+# ==================================================
+# CANCEL GIFT
+# ==================================================
+
+@bot.callback_query_handler(
+    func=lambda call: call.data == "cancel_gift"
+)
+def cancel_gift(call):
+
+    if not call.from_user.username:
+        bot.answer_callback_query(
+            call.id,
+            "❌ Owner သာ Cancel လုပ်နိုင်ပါတယ်။",
+            show_alert=True
+        )
+        return
+
+    if call.from_user.username.lower() != OWNER_USERNAME.lower():
+        bot.answer_callback_query(
+            call.id,
+            "❌ Owner သာ Cancel လုပ်နိုင်ပါတယ်။",
+            show_alert=True
+        )
+        return
+
+    bot.answer_callback_query(
+        call.id,
+        "❌ Gift Cancel လုပ်ပြီးပါပြီ။"
+    )
+
+    bot.edit_message_text(
+        "❌ <b>USD Gift Cancel လုပ်ပြီးပါပြီ။</b>",
+        call.message.chat.id,
+        call.message.message_id,
+        parse_mode="HTML"
     )
 
 
 # ==================================================
 # RENDER
 # ==================================================
+
+@app.route("/")
+def home():
+    return "Game Bot is running!"
+
 
 def run():
 
@@ -422,5 +487,7 @@ Thread(target=run).start()
 # ==================================================
 
 print("Bot is starting...")
+
+set_commands()
 
 bot.infinity_polling()
