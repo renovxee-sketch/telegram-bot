@@ -7,17 +7,28 @@ import telebot
 from telebot import types
 from flask import Flask
 
+
+# =========================================================
+# SETTINGS
+# =========================================================
+
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN is not set")
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
 OWNER_USERNAME = "Ruifineshyt"
+
 DATA_FILE = "bot_data.json"
 
 app = Flask(__name__)
 
+
+# =========================================================
+# FLASK / RENDER
+# =========================================================
 
 @app.route("/")
 def home():
@@ -26,16 +37,31 @@ def home():
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
 
+    app.run(
+        host="0.0.0.0",
+        port=port
+    )
+
+
+# =========================================================
+# DATA
+# =========================================================
 
 def load_data():
+
     if not os.path.exists(DATA_FILE):
         return {}
 
     try:
-        with open(DATA_FILE, "r", encoding="utf-8") as f:
+        with open(
+            DATA_FILE,
+            "r",
+            encoding="utf-8"
+        ) as f:
+
             return json.load(f)
+
     except Exception:
         return {}
 
@@ -44,22 +70,46 @@ data = load_data()
 
 
 def save_data():
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+
+    with open(
+        DATA_FILE,
+        "w",
+        encoding="utf-8"
+    ) as f:
+
+        json.dump(
+            data,
+            f,
+            ensure_ascii=False,
+            indent=2
+        )
 
 
-def get_user(user_id, first_name="User", username=None):
+# =========================================================
+# USER
+# =========================================================
+
+def get_user(
+    user_id,
+    first_name="User",
+    username=None
+):
+
     user_id = str(user_id)
 
     if user_id not in data:
+
         data[user_id] = {
             "name": first_name,
             "username": username or "",
             "usd": 0,
             "dia": 0
         }
+
         save_data()
+
     else:
+
         data[user_id]["name"] = first_name
 
         if username:
@@ -68,12 +118,27 @@ def get_user(user_id, first_name="User", username=None):
     return data[user_id]
 
 
-def mention_user(user):
-    name = user.first_name or "User"
-    return f'<a href="tg://user?id={user.id}">{name}</a>'
+# =========================================================
+# BLUE CLICKABLE NAME
+# =========================================================
 
+def mention_user(user):
+
+    name = user.first_name or "User"
+
+    return (
+        f'<a href="tg://user?id={user.id}">'
+        f'{name}'
+        f'</a>'
+    )
+
+
+# =========================================================
+# OWNER CHECK
+# =========================================================
 
 def is_owner(message):
+
     username = message.from_user.username
 
     if not username:
@@ -82,11 +147,21 @@ def is_owner(message):
     return username.lower() == OWNER_USERNAME.lower()
 
 
+# =========================================================
+# MONEY FORMAT
+# =========================================================
+
 def money(value):
+
     return f"{value:,}"
 
 
+# =========================================================
+# BALANCE TEXT
+# =========================================================
+
 def balance_text(user, user_id):
+
     return (
         f"👤 {user['name']} ({user_id}) ၏ လက်ကျန်ငွေ\n\n"
         f"💎 Diamonds: {money(user['dia'])}💎\n"
@@ -94,12 +169,13 @@ def balance_text(user, user_id):
     )
 
 
-# =========================
+# =========================================================
 # START
-# =========================
+# =========================================================
 
 @bot.message_handler(commands=["start"])
 def start_command(message):
+
     user = get_user(
         message.from_user.id,
         message.from_user.first_name,
@@ -107,11 +183,21 @@ def start_command(message):
     )
 
     text = (
-        f"👋 မင်္ဂလာပါ {mention_user(message.from_user)}!\n\n"
-        "🎮 အပျော်တန်း Game ကစားတဲ့ Bot မှ ကြိုဆိုပါတယ်!\n\n"
-        f"💎 Diamonds: {money(user['dia'])}💎\n"
-        f"💵 USD: ${money(user['usd'])}USD\n\n"
-        "👇 အောက်ပါ Button ကို နှိပ်ပြီး သင့် Group ထဲသို့ Bot ကို ထည့်သွင်းနိုင်ပါတယ်!"
+        f"👋 မင်္ဂလာပါ "
+        f"{mention_user(message.from_user)}!\n\n"
+
+        "🎮 အပျော်တန်း Game ကစားတဲ့ "
+        "Bot မှ ကြိုဆိုပါတယ်!\n\n"
+
+        f"💎 Diamonds: "
+        f"{money(user['dia'])}💎\n"
+
+        f"💵 USD: "
+        f"${money(user['usd'])}USD\n\n"
+
+        "👇 အောက်ပါ Button ကို နှိပ်ပြီး "
+        "သင့် Group ထဲသို့ Bot ကို "
+        "ထည့်သွင်းနိုင်ပါတယ်!"
     )
 
     markup = types.InlineKeyboardMarkup()
@@ -131,12 +217,13 @@ def start_command(message):
     )
 
 
-# =========================
+# =========================================================
 # BALANCE
-# =========================
+# =========================================================
 
 @bot.message_handler(commands=["balance"])
 def balance_command(message):
+
     user = get_user(
         message.from_user.id,
         message.from_user.first_name,
@@ -145,16 +232,20 @@ def balance_command(message):
 
     bot.reply_to(
         message,
-        balance_text(user, message.from_user.id)
+        balance_text(
+            user,
+            message.from_user.id
+        )
     )
 
 
-# =========================
+# =========================================================
 # GAME
-# =========================
+# =========================================================
 
 @bot.message_handler(commands=["game"])
 def game_command(message):
+
     user = get_user(
         message.from_user.id,
         message.from_user.first_name,
@@ -165,22 +256,34 @@ def game_command(message):
         "╔════════════════════════╗\n"
         "🎮 GAME CENTER 🎮\n"
         "╚════════════════════════╝\n\n"
+
         f"👤 {mention_user(message.from_user)}\n\n"
+
         "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+
         "🎰 ဂိမ်းကမ္ဘာမှ ကြိုဆိုပါတယ်!\n\n"
+
         "ဒီနေရာမှာ သင့်ကံကို စမ်းသပ်ပြီး 🎯\n"
         "စိတ်လှုပ်ရှားဖွယ် Game များကို\n"
         "အပျော်တမ်း ကစားနိုင်ပါတယ်! 🔥\n\n"
+
         "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+
         "💰 သင့်လက်ရှိ Balance\n\n"
+
         f"💵 USD ┃ ${money(user['usd'])}\n"
         f"💎 DIA ┃ {money(user['dia'])}\n\n"
+
         "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+
         "🎮 လက်ရှိ ကစားနိုင်သော Game\n\n"
+
         "🎰 SLOT MACHINE\n"
-        "└ 🍒 🍋 🍇 7️⃣ BAR\n"
+        "└ 🍋 🍇 7️⃣ BAR\n"
         "└ သင့်ကံကို စမ်းသပ်လိုက်ပါ! 🍀\n\n"
-        "👇 အောက်က Game ကိုရွေးပြီး စတင်ကစားပါ!"
+
+        "👇 အောက်က Game ကိုရွေးပြီး "
+        "စတင်ကစားပါ!"
     )
 
     markup = types.InlineKeyboardMarkup()
@@ -200,9 +303,9 @@ def game_command(message):
     )
 
 
-# =========================
-# SLOT BET
-# =========================
+# =========================================================
+# BET AMOUNTS
+# =========================================================
 
 BET_AMOUNTS = [
     10,
@@ -217,21 +320,34 @@ BET_AMOUNTS = [
 
 
 def bet_name(amount):
+
     names = {
+
         10: "10 USD",
+
         100: "100 USD",
+
         1000: "1K USD",
+
         10000: "10K USD",
+
         100000: "100K USD",
+
         300000: "300K USD",
+
         500000: "500K USD",
+
         1000000: "1M USD"
     }
 
-    return names.get(amount, f"{money(amount)} USD")
+    return names.get(
+        amount,
+        f"{money(amount)} USD"
+    )
 
 
 def create_bet_keyboard():
+
     markup = types.InlineKeyboardMarkup()
 
     row = []
@@ -246,17 +362,21 @@ def create_bet_keyboard():
         )
 
         if len(row) == 2:
+
             markup.row(*row)
+
             row = []
 
     return markup
 
 
-# =========================
+# =========================================================
 # SLOT BUTTON
-# =========================
+# =========================================================
 
-@bot.callback_query_handler(func=lambda call: call.data == "game_slot")
+@bot.callback_query_handler(
+    func=lambda call: call.data == "game_slot"
+)
 def slot_button(call):
 
     user = get_user(
@@ -269,11 +389,16 @@ def slot_button(call):
 
     text = (
         "🎰 SLOT MACHINE 🎰\n\n"
+
         f"👤 {mention_user(call.from_user)}\n\n"
+
         "💰 သင့်လက်ရှိ Balance\n"
+
         f"💵 USD ┃ ${money(user['usd'])}\n"
         f"💎 DIA ┃ {money(user['dia'])}\n\n"
+
         "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+
         "💵 ထိုးမယ့် လောင်းကြေးကို ရွေးပါ 👇"
     )
 
@@ -285,9 +410,9 @@ def slot_button(call):
     )
 
 
-# =========================
+# =========================================================
 # SLOT DECODER
-# =========================
+# =========================================================
 
 def get_slot_combination(dice_value):
 
@@ -301,8 +426,14 @@ def get_slot_combination(dice_value):
     value = dice_value - 1
 
     left = value & 3
-    middle = (value >> 2) & 3
-    right = (value >> 4) & 3
+
+    middle = (
+        value >> 2
+    ) & 3
+
+    right = (
+        value >> 4
+    ) & 3
 
     return (
         symbols[left],
@@ -311,13 +442,15 @@ def get_slot_combination(dice_value):
     )
 
 
-# =========================
+# =========================================================
 # SLOT PAYOUT
-# =========================
+# =========================================================
 
 def get_slot_payout(dice_value):
 
-    left, middle, right = get_slot_combination(dice_value)
+    left, middle, right = (
+        get_slot_combination(dice_value)
+    )
 
     # 777 = 30x
     if (
@@ -327,6 +460,7 @@ def get_slot_payout(dice_value):
     ):
         return 30
 
+
     # BAR BAR BAR = 10x
     if (
         left == "BAR"
@@ -334,6 +468,7 @@ def get_slot_payout(dice_value):
         and right == "BAR"
     ):
         return 10
+
 
     # 77🍇 = 3x
     if (
@@ -343,6 +478,7 @@ def get_slot_payout(dice_value):
     ):
         return 3
 
+
     # 🍇77 = 3x
     if (
         left == "🍇"
@@ -351,7 +487,8 @@ def get_slot_payout(dice_value):
     ):
         return 3
 
-    # 7🍇7 = No Win
+
+    # 7🍇7 = NO WIN
     if (
         left == "7️⃣"
         and middle == "🍇"
@@ -359,87 +496,164 @@ def get_slot_payout(dice_value):
     ):
         return 0
 
-    # Three same fruits = 5x
+
+    # Three identical fruits = 5x
     if left == middle == right:
 
-        if left in ["🍇", "🍋", "🍒"]:
+        if left in [
+            "🍇",
+            "🍋"
+        ]:
+
             return 5
 
-    # Any other result = Lose
+
+    # Everything else = lose
     return 0
 
 
-# =========================
+# =========================================================
 # SLOT RESULT
-# =========================
+# =========================================================
 
 def send_slot_result(
-    chat_id,
-    user,
+    dice_message,
+    telegram_user,
     bet,
     multiplier,
     dice_value
 ):
 
-    left, middle, right = get_slot_combination(dice_value)
-
-    combination = f"{left}  {middle}  {right}"
-
-    if multiplier > 0:
-
-        winnings = bet * multiplier
-
-        result_text = (
-            "🎰 SLOT RESULT 🎰\n\n"
-            f"👤 {user['name']}\n\n"
-            f"🎰 {combination}\n\n"
-            "🎉 ဒီတစ်ခါ နိုင်ပါတယ်!\n"
-            f"🏆 ဆုကြေး — {multiplier}×\n"
-            f"💰 အနိုင်ရငွေ — ${money(winnings)} USD\n\n"
-            "🍀 နောက်တစ်ကြိမ်လည်း ကံကောင်းပါစေ!\n\n"
-            "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            "💰 လက်ရှိ Balance\n"
-            f"💵 USD ┃ ${money(user['usd'])}\n"
-            f"💎 DIA ┃ {money(user['dia'])}\n\n"
-            "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            "💵 နောက်တစ်ကြိမ် ထိုးမယ့် လောင်းကြေးရွေးပါ 👇"
+    left, middle, right = (
+        get_slot_combination(
+            dice_value
         )
+    )
 
-    else:
-
-        result_text = (
-            "🎰 SLOT RESULT 🎰\n\n"
-            f"👤 {user['name']}\n\n"
-            f"🎰 {combination}\n\n"
-            "😢 ဒီတစ်ခါ ရှုံးသွားပါတယ်။\n"
-            f"💸 ရှုံးကြေး — ${money(bet)} USD\n\n"
-            "🍀 နောက်တစ်ကြိမ် ကံကောင်းပါစေ!\n\n"
-            "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            "💰 လက်ရှိ Balance\n"
-            f"💵 USD ┃ ${money(user['usd'])}\n"
-            f"💎 DIA ┃ {money(user['dia'])}\n\n"
-            "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            "💵 နောက်တစ်ကြိမ် ထိုးမယ့် လောင်းကြေးရွေးပါ 👇"
-        )
-
-    bot.send_message(
-        chat_id,
-        result_text,
-        reply_markup=create_bet_keyboard()
+    combination = (
+        f"{left}  {middle}  {right}"
     )
 
 
-# =========================
-# SLOT BET ACTION
-# =========================
+    # =========================
+    # WIN
+    # =========================
+
+    if multiplier > 0:
+
+        winnings = (
+            bet * multiplier
+        )
+
+        result_text = (
+
+            f"🎰 {mention_user(telegram_user)}\n\n"
+
+            f"🎰 {combination}\n\n"
+
+            "🎉 ဒီတစ်ခါ နိုင်ပါတယ်!\n"
+
+            f"🏆 ဆုကြေး — "
+            f"{multiplier}×\n"
+
+            f"💰 အနိုင်ရငွေ — "
+            f"${money(winnings)} USD\n\n"
+
+            "🍀 နောက်တစ်ကြိမ်လည်း "
+            "ကံကောင်းပါစေ!\n\n"
+
+            "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+
+            "💰 လက်ရှိ Balance\n"
+
+            f"💵 USD ┃ "
+            f"${money("
+            f"get_user("
+            f"telegram_user.id"
+            f")['usd']"
+            f")}\n"
+
+            f"💎 DIA ┃ "
+            f"{money("
+            f"get_user("
+            f"telegram_user.id"
+            f")['dia']"
+            f")}💎\n\n"
+
+            "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+
+            "💵 နောက်တစ်ကြိမ် "
+            "ထိုးမယ့် လောင်းကြေးရွေးပါ 👇"
+        )
+
+
+    # =========================
+    # LOSE
+    # =========================
+
+    else:
+
+        current_user = get_user(
+            telegram_user.id,
+            telegram_user.first_name,
+            telegram_user.username
+        )
+
+        result_text = (
+
+            f"🎰 {mention_user(telegram_user)}\n\n"
+
+            f"🎰 {combination}\n\n"
+
+            "😢 ဒီတစ်ခါ ရှုံးသွားပါတယ်။\n"
+
+            f"💸 ရှုံးကြေး — "
+            f"${money(bet)} USD\n\n"
+
+            "🍀 နောက်တစ်ကြိမ် "
+            "ကံကောင်းပါစေ!\n\n"
+
+            "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+
+            "💰 လက်ရှိ Balance\n"
+
+            f"💵 USD ┃ "
+            f"${money(current_user['usd'])}\n"
+
+            f"💎 DIA ┃ "
+            f"{money(current_user['dia'])}💎\n\n"
+
+            "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+
+            "💵 နောက်တစ်ကြိမ် "
+            "ထိုးမယ့် လောင်းကြေးရွေးပါ 👇"
+        )
+
+
+    # Reply directly to 🎰
+    bot.reply_to(
+        dice_message,
+        result_text,
+        reply_markup=create_bet_keyboard(),
+        parse_mode="HTML"
+    )
+
+
+# =========================================================
+# SLOT BET
+# =========================================================
 
 @bot.callback_query_handler(
-    func=lambda call: call.data.startswith("slot_bet:")
+    func=lambda call:
+        call.data.startswith("slot_bet:")
 )
 def slot_bet(call):
 
     try:
-        bet = int(call.data.split(":")[1])
+
+        bet = int(
+            call.data.split(":")[1]
+        )
 
     except Exception:
 
@@ -450,11 +664,17 @@ def slot_bet(call):
 
         return
 
+
     user = get_user(
         call.from_user.id,
         call.from_user.first_name,
         call.from_user.username
     )
+
+
+    # =========================
+    # CHECK BALANCE
+    # =========================
 
     if user["usd"] < bet:
 
@@ -466,55 +686,88 @@ def slot_bet(call):
 
         return
 
-    # Deduct bet
+
+    # =========================
+    # DEDUCT BET
+    # =========================
+
     user["usd"] -= bet
 
     save_data()
 
-    bot.answer_callback_query(call.id)
+    bot.answer_callback_query(
+        call.id
+    )
 
-    # Telegram Slot Animation
+
+    # =========================
+    # REAL TELEGRAM SLOT
+    # =========================
+
     dice_msg = bot.send_dice(
         call.message.chat.id,
         emoji="🎰"
     )
 
-    # Result after 2 seconds
-    time.sleep(2)
 
-    dice_value = dice_msg.dice.value
+    # =====================================================
+    # WAIT FOR ALL 3 REELS TO STOP
+    # =====================================================
 
-    multiplier = get_slot_payout(dice_value)
+    time.sleep(3)
 
-    # Add winnings
+
+    # =========================
+    # GET RESULT
+    # =========================
+
+    dice_value = (
+        dice_msg.dice.value
+    )
+
+
+    multiplier = (
+        get_slot_payout(
+            dice_value
+        )
+    )
+
+
+    # =========================
+    # ADD WINNINGS
+    # =========================
+
     if multiplier > 0:
 
-        winnings = bet * multiplier
+        winnings = (
+            bet * multiplier
+        )
 
         user["usd"] += winnings
 
         save_data()
 
-    user = get_user(
-        call.from_user.id,
-        call.from_user.first_name,
-        call.from_user.username
-    )
+
+    # =========================
+    # RESULT
+    # =========================
 
     send_slot_result(
-        call.message.chat.id,
-        user,
+        dice_msg,
+        call.from_user,
         bet,
         multiplier,
         dice_value
     )
 
 
-# =========================
-# OWNER USD
-# =========================
+# =========================================================
+# OWNER /USD
+# =========================================================
 
-@bot.message_handler(commands=["usd"])
+@bot.message_handler(
+    commands=["usd"]
+)
 def usd_command(message):
 
     if not is_owner(message):
@@ -526,19 +779,26 @@ def usd_command(message):
 
         return
 
+
     parts = message.text.split()
+
 
     if len(parts) < 2:
 
         bot.reply_to(
             message,
-            "အသုံးပြုပုံ\n\n/usd 100"
+            "အသုံးပြုပုံ\n\n"
+            "/usd 100"
         )
 
         return
 
+
     try:
-        amount = int(parts[1])
+
+        amount = int(
+            parts[1]
+        )
 
     except ValueError:
 
@@ -549,28 +809,37 @@ def usd_command(message):
 
         return
 
+
     user = get_user(
         message.from_user.id,
         message.from_user.first_name,
         message.from_user.username
     )
 
+
     user["usd"] += amount
 
     save_data()
 
+
     bot.reply_to(
         message,
-        f"✅ USD ${money(amount)} ထည့်ပြီးပါပြီ။\n\n"
-        f"💵 Balance ┃ ${money(user['usd'])}"
+
+        f"✅ USD ${money(amount)} "
+        "ထည့်ပြီးပါပြီ။\n\n"
+
+        f"💵 Balance ┃ "
+        f"${money(user['usd'])}"
     )
 
 
-# =========================
-# OWNER DIA
-# =========================
+# =========================================================
+# OWNER /DIA
+# =========================================================
 
-@bot.message_handler(commands=["dia"])
+@bot.message_handler(
+    commands=["dia"]
+)
 def dia_command(message):
 
     if not is_owner(message):
@@ -582,19 +851,26 @@ def dia_command(message):
 
         return
 
+
     parts = message.text.split()
+
 
     if len(parts) < 2:
 
         bot.reply_to(
             message,
-            "အသုံးပြုပုံ\n\n/dia 100"
+            "အသုံးပြုပုံ\n\n"
+            "/dia 100"
         )
 
         return
 
+
     try:
-        amount = int(parts[1])
+
+        amount = int(
+            parts[1]
+        )
 
     except ValueError:
 
@@ -605,28 +881,38 @@ def dia_command(message):
 
         return
 
+
     user = get_user(
         message.from_user.id,
         message.from_user.first_name,
         message.from_user.username
     )
 
+
     user["dia"] += amount
 
     save_data()
 
+
     bot.reply_to(
         message,
-        f"✅ Diamonds {money(amount)}💎 ထည့်ပြီးပါပြီ။\n\n"
-        f"💎 Balance ┃ {money(user['dia'])}💎"
+
+        f"✅ Diamonds "
+        f"{money(amount)}💎 "
+        "ထည့်ပြီးပါပြီ။\n\n"
+
+        f"💎 Balance ┃ "
+        f"{money(user['dia'])}💎"
     )
 
 
-# =========================
-# GIFT USD
-# =========================
+# =========================================================
+# /GIFT
+# =========================================================
 
-@bot.message_handler(commands=["gift"])
+@bot.message_handler(
+    commands=["gift"]
+)
 def gift_command(message):
 
     if not is_owner(message):
@@ -638,31 +924,44 @@ def gift_command(message):
 
         return
 
+
     if not message.reply_to_message:
 
         bot.reply_to(
             message,
-            "❌ User ရဲ့ message ကို Reply လုပ်ပြီး\n"
+
+            "❌ User ရဲ့ message ကို "
+            "Reply လုပ်ပြီး\n"
+
             "/gift amount\n\n"
+
             "ဥပမာ - /gift 100"
         )
 
         return
 
+
     parts = message.text.split()
+
 
     if len(parts) < 2:
 
         bot.reply_to(
             message,
+
             "❌ Amount ထည့်ပါ။\n\n"
+
             "ဥပမာ - /gift 100"
         )
 
         return
 
+
     try:
-        amount = int(parts[1])
+
+        amount = int(
+            parts[1]
+        )
 
     except ValueError:
 
@@ -673,7 +972,11 @@ def gift_command(message):
 
         return
 
-    target = message.reply_to_message.from_user
+
+    target = (
+        message.reply_to_message.from_user
+    )
+
 
     user = get_user(
         target.id,
@@ -681,24 +984,33 @@ def gift_command(message):
         target.username
     )
 
+
     user["usd"] += amount
 
     save_data()
 
+
     bot.reply_to(
         message,
-        f"🎁 USD Gift ပေးပြီးပါပြီ!\n\n"
+
+        "🎁 USD Gift ပေးပြီးပါပြီ!\n\n"
+
         f"👤 {target.first_name}\n"
+
         f"💵 +${money(amount)} USD\n"
-        f"💰 Balance ┃ ${money(user['usd'])}"
+
+        f"💰 Balance ┃ "
+        f"${money(user['usd'])}"
     )
 
 
-# =========================
-# GIFT DIA
-# =========================
+# =========================================================
+# /GIFT DIA
+# =========================================================
 
-@bot.message_handler(commands=["giftdia"])
+@bot.message_handler(
+    commands=["giftdia"]
+)
 def giftdia_command(message):
 
     if not is_owner(message):
@@ -710,31 +1022,44 @@ def giftdia_command(message):
 
         return
 
+
     if not message.reply_to_message:
 
         bot.reply_to(
             message,
-            "❌ User ရဲ့ message ကို Reply လုပ်ပြီး\n"
+
+            "❌ User ရဲ့ message ကို "
+            "Reply လုပ်ပြီး\n"
+
             "/giftdia amount\n\n"
+
             "ဥပမာ - /giftdia 100"
         )
 
         return
 
+
     parts = message.text.split()
+
 
     if len(parts) < 2:
 
         bot.reply_to(
             message,
+
             "❌ Amount ထည့်ပါ။\n\n"
+
             "ဥပမာ - /giftdia 100"
         )
 
         return
 
+
     try:
-        amount = int(parts[1])
+
+        amount = int(
+            parts[1]
+        )
 
     except ValueError:
 
@@ -745,7 +1070,11 @@ def giftdia_command(message):
 
         return
 
-    target = message.reply_to_message.from_user
+
+    target = (
+        message.reply_to_message.from_user
+    )
+
 
     user = get_user(
         target.id,
@@ -753,58 +1082,75 @@ def giftdia_command(message):
         target.username
     )
 
+
     user["dia"] += amount
 
     save_data()
 
+
     bot.reply_to(
         message,
-        f"🎁 Diamonds Gift ပေးပြီးပါပြီ!\n\n"
+
+        "🎁 Diamonds Gift "
+        "ပေးပြီးပါပြီ!\n\n"
+
         f"👤 {target.first_name}\n"
+
         f"💎 +{money(amount)} DIA\n"
-        f"💎 Balance ┃ {money(user['dia'])}"
+
+        f"💎 Balance ┃ "
+        f"{money(user['dia'])}"
     )
 
 
-# =========================
+# =========================================================
 # COMMAND MENU
-# =========================
+# =========================================================
 
 def setup_commands():
 
     commands = [
+
         types.BotCommand(
             "start",
             "Bot စတင်ရန်"
         ),
+
         types.BotCommand(
             "game",
             "Game ကစားရန်"
         ),
+
         types.BotCommand(
             "balance",
             "Balance ကြည့်ရန်"
         ),
+
         types.BotCommand(
             "gift",
             "USD Gift ပေးရန်"
         ),
+
         types.BotCommand(
             "giftdia",
             "Diamond Gift ပေးရန်"
         )
     ]
 
-    bot.set_my_commands(commands)
+
+    bot.set_my_commands(
+        commands
+    )
 
 
-# =========================
-# RUN
-# =========================
+# =========================================================
+# MAIN
+# =========================================================
 
 if __name__ == "__main__":
 
     setup_commands()
+
 
     flask_thread = threading.Thread(
         target=run_flask,
@@ -813,9 +1159,14 @@ if __name__ == "__main__":
 
     flask_thread.start()
 
-    print("Bot is running...")
+
+    print(
+        "Bot is running..."
+    )
+
 
     bot.remove_webhook()
+
 
     bot.infinity_polling(
         skip_pending=True,
