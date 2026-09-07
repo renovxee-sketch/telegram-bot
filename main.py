@@ -3,7 +3,6 @@ import json
 import telebot
 from flask import Flask
 from threading import Thread
-
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 
@@ -186,6 +185,51 @@ def balance(message):
 
 
 # ==================================================
+# GAME MENU
+# ==================================================
+
+@bot.message_handler(commands=["game"])
+def game(message):
+
+    user_id = message.from_user.id
+    user_name = message.from_user.first_name or "Player"
+
+    text = (
+        f'👋 <a href="tg://user?id={user_id}">{user_name}</a> ရေ!\n\n'
+        '🎮 ဆော့ကစားနိုင်သောဂိမ်းများ'
+    )
+
+    keyboard = InlineKeyboardMarkup()
+
+    keyboard.add(
+        InlineKeyboardButton(
+            "🎰 Slot",
+            callback_data="game_slot"
+        )
+    )
+
+    bot.reply_to(
+        message,
+        text,
+        reply_markup=keyboard,
+        parse_mode="HTML"
+    )
+
+
+# ==================================================
+# SLOT BUTTON
+# ==================================================
+
+@bot.callback_query_handler(func=lambda call: call.data == "game_slot")
+def slot_button(call):
+
+    bot.answer_callback_query(
+        call.id,
+        "🎰 Slot Game ကို မကြာခင်ထည့်ပေးမယ်!"
+    )
+
+
+# ==================================================
 # OWNER — USD UNLIMITED
 # ==================================================
 
@@ -228,114 +272,4 @@ def add_usd(message):
 
         return
 
-    if amount <= 0:
-
-        bot.reply_to(
-            message,
-            "❌ 0 ထက်ကြီးတဲ့ ပမာဏ ထည့်ပါ။"
-        )
-
-        return
-
-    user = get_user(message.from_user.id)
-
-    user["usd"] += amount
-
-    save_data()
-
-    bot.reply_to(
-        message,
-        f"✅ USD ထည့်ပြီးပါပြီ!\n\n"
-        f"💵 ထည့်ငွေ: +${amount:,}\n"
-        f"💰 လက်ကျန်: ${user['usd']:,}USD"
-    )
-
-
-# ==================================================
-# OWNER — DIAMOND UNLIMITED
-# ==================================================
-
-@bot.message_handler(commands=["dia"])
-def add_diamond(message):
-
-    if not is_owner(message):
-
-        bot.reply_to(
-            message,
-            "❌ ဒီ Command ကို Owner သာ အသုံးပြုနိုင်ပါတယ်။"
-        )
-
-        return
-
-    parts = message.text.split()
-
-    if len(parts) != 2:
-
-        bot.reply_to(
-            message,
-            "❌ အသုံးပြုပုံ:\n\n"
-            "/dia ပမာဏ\n\n"
-            "ဥပမာ:\n"
-            "/dia 1000000"
-        )
-
-        return
-
-    try:
-
-        amount = int(parts[1])
-
-    except ValueError:
-
-        bot.reply_to(
-            message,
-            "❌ Diamond ပမာဏကို နံပါတ်နဲ့ ထည့်ပါ။"
-        )
-
-        return
-
-    if amount <= 0:
-
-        bot.reply_to(
-            message,
-            "❌ 0 ထက်ကြီးတဲ့ ပမာဏ ထည့်ပါ။"
-        )
-
-        return
-
-    user = get_user(message.from_user.id)
-
-    user["dia"] += amount
-
-    save_data()
-
-    bot.reply_to(
-        message,
-        f"✅ Diamond ထည့်ပြီးပါပြီ!\n\n"
-        f"💎 ထည့်ပမာဏ: +{amount:,}\n"
-        f"💎 လက်ကျန်: {user['dia']:,} Diamonds"
-    )
-
-
-# ==================================================
-# RENDER
-# ==================================================
-
-def run():
-
-    app.run(
-        host="0.0.0.0",
-        port=int(os.environ.get("PORT", 10000))
-    )
-
-
-Thread(target=run).start()
-
-
-# ==================================================
-# START BOT
-# ==================================================
-
-print("Bot is starting...")
-
-bot.infinity_polling()
+   
