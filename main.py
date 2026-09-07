@@ -34,7 +34,8 @@ def get_user(user_id):
     if user_id not in users:
 
         users[user_id] = {
-            "usd": 0
+            "usd": 0,
+            "dia": 0
         }
 
     return users[user_id]
@@ -58,7 +59,6 @@ def home():
 def start(message):
 
     user_id = message.from_user.id
-
     user_name = message.from_user.first_name or "Player"
 
     user = get_user(user_id)
@@ -67,6 +67,7 @@ def start(message):
         f'👋 မင်္ဂလာပါ '
         f'<a href="tg://user?id={user_id}">{user_name}</a>!\n\n'
         '🎮 အပျော်တန်း Game ကစားတဲ့ Bot မှ ကြိုဆိုပါတယ်!\n\n'
+        f'💎 Diamonds: {user["dia"]:,}\n'
         f'💵 USD: ${user["usd"]:,}\n\n'
         '👇 အောက်ပါ Button ကို နှိပ်ပြီး '
         'သင့် Group ထဲသို့ Bot ကို ထည့်သွင်းနိုင်ပါတယ်!'
@@ -97,15 +98,14 @@ def start(message):
 def balance(message):
 
     user_id = message.from_user.id
-
     user_name = message.from_user.first_name or "Player"
 
     user = get_user(user_id)
 
     text = (
-        f'👤 <a href="tg://user?id={user_id}">{user_name}</a>\n\n'
-        '💰 <b>Your Balance</b>\n\n'
-        f'💵 USD: <b>${user["usd"]:,}</b>'
+        f"👤 <b>{user_name} ({user_id})</b> ၏ လက်ကျန်ငွေ\n"
+        f"💎 Diamonds: <b>{user['dia']:,}</b>💎\n"
+        f"💵 USD: <b>${user['usd']:,}USD</b>"
     )
 
     bot.send_message(
