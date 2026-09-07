@@ -5,11 +5,8 @@ from threading import Thread
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 TOKEN = os.getenv("BOT_TOKEN")
-
-if not TOKEN:
-    print("BOT_TOKEN not found!")
-
 bot = telebot.TeleBot(TOKEN)
+
 app = Flask(__name__)
 
 
@@ -19,6 +16,7 @@ def home():
 
 
 # ================= START =================
+
 @bot.message_handler(commands=["start"])
 def start(message):
 
@@ -49,60 +47,88 @@ def start(message):
 
 
 # ================= GAME MENU =================
+
 @bot.message_handler(commands=["game"])
 def game_menu(message):
 
     keyboard = InlineKeyboardMarkup(row_width=2)
 
-    buttons = [
-        InlineKeyboardButton("⚽ Football", callback_data="football"),
-        InlineKeyboardButton("🎰 Slot", callback_data="slot"),
-        InlineKeyboardButton("🎲 Dice", callback_data="dice"),
-        InlineKeyboardButton("🎯 Dart", callback_data="dart"),
-        InlineKeyboardButton("🎳 Bowling", callback_data="bowling"),
-        InlineKeyboardButton("🏀 Basketball", callback_data="basketball")
-    ]
-
-    keyboard.add(*buttons)
+    keyboard.add(
+        InlineKeyboardButton("⚽ Football", callback_data="game_football"),
+        InlineKeyboardButton("🎰 Slot", callback_data="game_slot"),
+        InlineKeyboardButton("🎲 Dice", callback_data="game_dice"),
+        InlineKeyboardButton("🎯 Dart", callback_data="game_dart"),
+        InlineKeyboardButton("🎳 Bowling", callback_data="game_bowling"),
+        InlineKeyboardButton("🏀 Basketball", callback_data="game_basketball")
+    )
 
     bot.send_message(
         message.chat.id,
-        "🎮 GAME MENU\n\nဂိမ်းတစ်ခုရွေးပါ 👇",
+        "🎮 ဆော့ကစားနိုင်သောဂိမ်းများ\n\nဂိမ်းတစ်ခုရွေးပါ 👇",
         reply_markup=keyboard
     )
 
 
-# ================= GAME BUTTON =================
-@bot.callback_query_handler(
-    func=lambda call: call.data in [
-        "football",
-        "slot",
-        "dice",
-        "dart",
-        "bowling",
-        "basketball"
-    ]
-)
-def game_buttons(call):
+# ================= GAME SELECT =================
 
-    games = {
-        "football": "⚽",
-        "slot": "🎰",
-        "dice": "🎲",
-        "dart": "🎯",
-        "bowling": "🎳",
-        "basketball": "🏀"
-    }
+@bot.callback_query_handler(
+    func=lambda call: call.data.startswith("game_")
+)
+def select_game(call):
 
     bot.answer_callback_query(call.id)
 
-    bot.send_dice(
+    game_name = call.data.replace("game_", "")
+
+    keyboard = InlineKeyboardMarkup(row_width=2)
+
+    keyboard.add(
+        InlineKeyboardButton("💰 10", callback_data=f"money_{game_name}_10"),
+        InlineKeyboardButton("💰 100", callback_data=f"money_{game_name}_100"),
+
+        InlineKeyboardButton("💰 1K", callback_data=f"money_{game_name}_1000"),
+        InlineKeyboardButton("💰 10K", callback_data=f"money_{game_name}_10000"),
+
+        InlineKeyboardButton("💰 100K", callback_data=f"money_{game_name}_100000"),
+        InlineKeyboardButton("💰 300K", callback_data=f"money_{game_name}_300000"),
+
+        InlineKeyboardButton("💰 500K", callback_data=f"money_{game_name}_500000"),
+        InlineKeyboardButton("💰 1M", callback_data=f"money_{game_name}_1000000")
+    )
+
+    bot.edit_message_text(
+        f"🎮 {game_name.upper()}\n\n💰 လောင်းကြေးပမာဏရွေးပါ 👇",
         call.message.chat.id,
-        emoji=games[call.data]
+        call.message.message_id,
+        reply_markup=keyboard
     )
 
 
-# ================= INDIVIDUAL COMMANDS =================
+# ================= MONEY SELECT =================
+
+@bot.callback_query_handler(
+    func=lambda call: call.data.startswith("money_")
+)
+def select_money(call):
+
+    bot.answer_callback_query(call.id)
+
+    parts = call.data.split("_")
+
+    game = parts[1]
+    money = parts[2]
+
+    bot.edit_message_text(
+        f"🎮 Game: {game.upper()}\n\n"
+        f"💰 လောင်းကြေး: {money}\n\n"
+        f"🎯 ဂိမ်းစတင်ရန် အဆင့် ၃ မှာ ဆက်လုပ်မယ် 👇",
+        call.message.chat.id,
+        call.message.message_id
+    )
+
+
+# ================= INDIVIDUAL GAME COMMANDS =================
+
 @bot.message_handler(commands=["dice"])
 def dice(message):
     bot.send_dice(message.chat.id, emoji="🎲")
@@ -134,7 +160,9 @@ def dart(message):
 
 
 # ================= WEB SERVER =================
+
 def run():
+
     app.run(
         host="0.0.0.0",
         port=int(os.environ.get("PORT", 10000))
