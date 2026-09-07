@@ -228,4 +228,91 @@ def play_game(call):
 
     # Animation 3
     bot.edit_message_text(
-        f"{emoji} Game စတင်
+        f"{emoji} Game စတင်နေပါသည်...\n\n"
+        f"{emoji} {emoji} {emoji}",
+        call.message.chat.id,
+        call.message.message_id
+    )
+
+    time.sleep(1)
+
+    # Result
+    win = random.choice([True, False])
+
+    result_number = random.randint(1, 6)
+
+    if win:
+
+        profit = money
+        users[user_id]["usd"] += profit
+
+        bot.edit_message_text(
+            f"{emoji} ရလဒ်: {result_number}\n\n"
+            "🎉 နိုင်ပါသည်!\n\n"
+            f"💰 အသားတင်: +{profit:,} USD\n\n"
+            f"💵 လက်ကျန်ငွေ: ${users[user_id]['usd']:,}",
+            call.message.chat.id,
+            call.message.message_id
+        )
+
+    else:
+
+        users[user_id]["usd"] -= money
+
+        bot.edit_message_text(
+            f"{emoji} ရလဒ်: {result_number}\n\n"
+            "💔 ရှုံးပါသည်!\n\n"
+            f"💰 အသားတင်: -{money:,} USD\n\n"
+            f"💵 လက်ကျန်ငွေ: ${users[user_id]['usd']:,}",
+            call.message.chat.id,
+            call.message.message_id
+        )
+
+
+# ================= GAME COMMANDS =================
+
+@bot.message_handler(commands=["dice"])
+def dice(message):
+    bot.send_dice(message.chat.id, emoji="🎲")
+
+
+@bot.message_handler(commands=["bowling"])
+def bowling(message):
+    bot.send_dice(message.chat.id, emoji="🎳")
+
+
+@bot.message_handler(commands=["football"])
+def football(message):
+    bot.send_dice(message.chat.id, emoji="⚽")
+
+
+@bot.message_handler(commands=["basketball"])
+def basketball(message):
+    bot.send_dice(message.chat.id, emoji="🏀")
+
+
+@bot.message_handler(commands=["slot"])
+def slot(message):
+    bot.send_dice(message.chat.id, emoji="🎰")
+
+
+@bot.message_handler(commands=["dart"])
+def dart(message):
+    bot.send_dice(message.chat.id, emoji="🎯")
+
+
+# ================= WEB SERVER =================
+
+def run():
+
+    app.run(
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", 10000))
+    )
+
+
+Thread(target=run).start()
+
+print("Bot is starting...")
+
+bot.infinity_polling()
