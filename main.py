@@ -1,5 +1,7 @@
 import os
 import json
+import time
+import random
 import telebot
 from flask import Flask
 from threading import Thread
@@ -215,7 +217,7 @@ def slot_button(call):
 
 
 # ==================================================
-# SLOT BET
+# SLOT ANIMATION - STEP 3
 # ==================================================
 
 @bot.callback_query_handler(
@@ -227,7 +229,70 @@ def slot_bet(call):
 
     bot.answer_callback_query(
         call.id,
-        f"💵 {bet:,} USD ရွေးထားပါတယ်။"
+        f"🎰 {bet:,} USD နဲ့ လှည့်နေပါပြီ!"
+    )
+
+    chat_id = call.message.chat.id
+    message_id = call.message.message_id
+
+    # Animation 1
+    bot.edit_message_text(
+        "🎰 <b>Slot လှည့်နေပါတယ်...</b>\n\n"
+        "🍒 | 🍋 | 🍇",
+        chat_id,
+        message_id,
+        parse_mode="HTML"
+    )
+
+    time.sleep(0.7)
+
+    # Animation 2
+    bot.edit_message_text(
+        "🎰 <b>Slot လှည့်နေပါတယ်...</b>\n\n"
+        "🍋 | 🍇 | 7️⃣",
+        chat_id,
+        message_id,
+        parse_mode="HTML"
+    )
+
+    time.sleep(0.7)
+
+    # Animation 3
+    bot.edit_message_text(
+        "🎰 <b>Slot လှည့်နေပါတယ်...</b>\n\n"
+        "🍇 | 7️⃣ | 🍒",
+        chat_id,
+        message_id,
+        parse_mode="HTML"
+    )
+
+    time.sleep(0.7)
+
+    # Final result
+    symbols = [
+        "🍒",
+        "🍋",
+        "🍇",
+        "🍊",
+        "7️⃣",
+        "BAR"
+    ]
+
+    result = [
+        random.choice(symbols),
+        random.choice(symbols),
+        random.choice(symbols)
+    ]
+
+    result_text = " | ".join(result)
+
+    bot.edit_message_text(
+        "🎰 <b>SLOT RESULT</b>\n\n"
+        f"{result_text}\n\n"
+        f"💵 Bet: {bet:,} USD",
+        chat_id,
+        message_id,
+        parse_mode="HTML"
     )
 
 
