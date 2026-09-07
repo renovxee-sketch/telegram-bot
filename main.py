@@ -1,4 +1,5 @@
 import os
+import json
 import telebot
 from flask import Flask
 from threading import Thread
@@ -23,21 +24,65 @@ app = Flask(__name__)
 
 
 # ==================================================
-# OWNER ID
+# OWNER
 # ==================================================
 
-# ဒီနေရာမှာ သင့် Telegram ID ထည့်ပါ
-OWNER_ID = 8342585453
+OWNER_USERNAME = "Ruifineshyt"
+
+
+# ==================================================
+# DATA FILE
+# ==================================================
+
+DATA_FILE = "bot_data.json"
+
+
+def load_data():
+
+    if os.path.exists(DATA_FILE):
+
+        try:
+            with open(DATA_FILE, "r", encoding="utf-8") as file:
+                return json.load(file)
+
+        except Exception:
+            pass
+
+    return {
+        "users": {}
+    }
+
+
+data = load_data()
+
+users = data.get("users", {})
+
+
+# ==================================================
+# SAVE DATA
+# ==================================================
+
+def save_data():
+
+    data["users"] = users
+
+    with open(DATA_FILE, "w", encoding="utf-8") as file:
+
+        json.dump(
+            data,
+            file,
+            ensure_ascii=False,
+            indent=4
+        )
 
 
 # ==================================================
 # USER DATA
 # ==================================================
 
-users = {}
-
-
 def get_user(user_id):
+
+    user_id = str(user_id)
 
     if user_id not in users:
 
@@ -46,7 +91,24 @@ def get_user(user_id):
             "dia": 0
         }
 
+        save_data()
+
     return users[user_id]
+
+
+# ==================================================
+# CHECK OWNER
+# ==================================================
+
+def is_owner(message):
+
+    username = message.from_user.username
+
+    if username:
+
+        return username.lower() == OWNER_USERNAME.lower()
+
+    return False
 
 
 # ==================================================
@@ -124,18 +186,19 @@ def balance(message):
 
 
 # ==================================================
-# OWNER — ADD USD
+# OWNER — USD UNLIMITED
 # ==================================================
 
 @bot.message_handler(commands=["usd"])
 def add_usd(message):
 
-    if message.from_user.id != OWNER_ID:
+    if not is_owner(message):
 
         bot.reply_to(
             message,
             "❌ ဒီ Command ကို Owner သာ အသုံးပြုနိုင်ပါတယ်။"
         )
+
         return
 
     parts = message.text.split()
@@ -146,11 +209,14 @@ def add_usd(message):
             message,
             "❌ အသုံးပြုပုံ:\n\n"
             "/usd ပမာဏ\n\n"
-            "ဥပမာ: /usd 1000000"
+            "ဥပမာ:\n"
+            "/usd 1000000"
         )
+
         return
 
     try:
+
         amount = int(parts[1])
 
     except ValueError:
@@ -159,6 +225,7 @@ def add_usd(message):
             message,
             "❌ USD ပမာဏကို နံပါတ်နဲ့ ထည့်ပါ။"
         )
+
         return
 
     if amount <= 0:
@@ -167,11 +234,14 @@ def add_usd(message):
             message,
             "❌ 0 ထက်ကြီးတဲ့ ပမာဏ ထည့်ပါ။"
         )
+
         return
 
-    user = get_user(OWNER_ID)
+    user = get_user(message.from_user.id)
 
     user["usd"] += amount
+
+    save_data()
 
     bot.reply_to(
         message,
@@ -182,18 +252,19 @@ def add_usd(message):
 
 
 # ==================================================
-# OWNER — ADD DIAMOND
+# OWNER — DIAMOND UNLIMITED
 # ==================================================
 
 @bot.message_handler(commands=["dia"])
 def add_diamond(message):
 
-    if message.from_user.id != OWNER_ID:
+    if not is_owner(message):
 
         bot.reply_to(
             message,
             "❌ ဒီ Command ကို Owner သာ အသုံးပြုနိုင်ပါတယ်။"
         )
+
         return
 
     parts = message.text.split()
@@ -204,11 +275,14 @@ def add_diamond(message):
             message,
             "❌ အသုံးပြုပုံ:\n\n"
             "/dia ပမာဏ\n\n"
-            "ဥပမာ: /dia 1000000"
+            "ဥပမာ:\n"
+            "/dia 1000000"
         )
+
         return
 
     try:
+
         amount = int(parts[1])
 
     except ValueError:
@@ -217,6 +291,7 @@ def add_diamond(message):
             message,
             "❌ Diamond ပမာဏကို နံပါတ်နဲ့ ထည့်ပါ။"
         )
+
         return
 
     if amount <= 0:
@@ -225,11 +300,14 @@ def add_diamond(message):
             message,
             "❌ 0 ထက်ကြီးတဲ့ ပမာဏ ထည့်ပါ။"
         )
+
         return
 
-    user = get_user(OWNER_ID)
+    user = get_user(message.from_user.id)
 
     user["dia"] += amount
+
+    save_data()
 
     bot.reply_to(
         message,
@@ -240,7 +318,7 @@ def add_diamond(message):
 
 
 # ==================================================
-# RENDER WEB SERVER
+# RENDER
 # ==================================================
 
 def run():
