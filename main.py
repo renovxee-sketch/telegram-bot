@@ -5,20 +5,15 @@ from flask import Flask
 from threading import Thread
 from pymongo import MongoClient
 
-# 1. Environment Variables များနှင့် ချိတ်ဆက်ခြင်း
 TOKEN = os.environ.get("BOT_TOKEN", "your_bot_token")
 MONGO_URL = os.environ.get("MONGO_URL", "your_mongo_url")
-# Owner ရဲ့ Telegram User ID ကို ထည့်ရန် (Render env မှာ OWNER_ID ထည့်ရပါမယ်)
-OWNER_ID = int(os.environ.get("OWNER_ID", "0"))
 
 bot = telebot.TeleBot(TOKEN)
 
-# MongoDB ချိတ်ဆက်ခြင်း
 mongo_client = MongoClient(MONGO_URL)
 db = mongo_client["telegram_game_bot"]
 users_col = db["users"]
 
-# Render တွင် Port error မတက်စေရန် Flask ဆာဗာ
 app = Flask('')
 
 @app.route('/')
@@ -28,7 +23,14 @@ def home():
 def run():
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
 
-# 2. /start Command (USD 10,000 နဲ့ Dia 500 စတင်ထည့်ပေးခြင်း)
+# Owner စစ်ဆေးရန် (ပထမဆုံး command သုံးသူကို Owner အဖြစ် သတ်မှတ်ပေးမည်)
+def is_owner(user_id):
+    owner_doc = db["config"].find_one({"key": "owner_id"})
+    if not owner_doc:
+        db["config"].insert_one({"key": "owner_id", "value": user_id})
+        return True
+    return owner_doc["value"] == user_id
+
 @bot.message_handler(commands=["start"])
 def start(message):
     user_id = message.from_user.id
@@ -64,7 +66,6 @@ def start(message):
     
     bot.send_message(message.chat.id, welcome_msg, parse_mode="Markdown", reply_markup=markup)
 
-# 3. /balance Command (ငွေစာရင်းကြည့်ရန်)
 @bot.message_handler(commands=["balance"])
 def balance(message):
     user_id = message.from_user.id
@@ -85,10 +86,10 @@ def balance(message):
     )
     bot.send_message(message.chat.id, bal_text, parse_mode="Markdown")
 
-# 4. Owner Only: /usd Command (USD ဖြည့်ရန်)
+# Owner Only: /usd Command
 @bot.message_handler(commands=["usd"])
 def add_usd(message):
-    if message.from_user.id != OWNER_ID:
+    if not is_owner(message.from_user.id):
         bot.reply_to(message, "❌ ဒီ command က Owner သာ သုံးလို့ရပါတယ်။")
         return
 
@@ -96,24 +97,19 @@ def add_usd(message):
     target_user_id = None
     amount = None
 
-    # Reply လုပ်ထားလျှင်
     if message.reply_to_message:
         target_user_id = message.reply_to_message.from_user.id
         if len(args) > 1:
-            try:
-                amount = float(args[1])
-            except ValueError:
-                pass
-    # ID နှင့် ပမာဏ တိုက်ရိုက်ပေးလျှင် (/usd user_id amount)
+            try: amount = float(args[1])
+            except ValueError: pass
     elif len(args) >= 3:
         try:
             target_user_id = int(args[1])
             amount = float(args[2])
-        except ValueError:
-            pass
+        except ValueError: pass
 
     if not target_user_id or amount is None:
-        bot.reply_to(message, "⚠️ အသုံးစနစ်မှားယွင်းနေပါသည်။\nပုံစံ - `/usd <user_id> <amount>` (သို့မဟုတ်) User မက်ဆေ့ချ်ကို Reply လုပ်ပြီး `/usd <amount>` လို့ ပို့ပါ။", parse_mode="Markdown")
+        bot.reply_to(message, "⚠️ ပုံစံ - User မက်ဆေ့ချ်ကို Reply လုပ်ပြီး `/usd <amount>` လို့ ပို့ပါ။", parse_mode="Markdown")
         return
 
     user = users_col.find_one({"user_id": target_user_id})
@@ -124,12 +120,12 @@ def add_usd(message):
         new_usd = amount
         users_col.insert_one({"user_id": target_user_id, "usd": new_usd, "dia": 500})
 
-    bot.reply_to(message, f"✅ အောင်မြင်ပါသည်။ User (`{target_user_id}`) ထံသို့ **{amount:,.2f} USD** ထည့်သွင်းပေးလိုက်ပါပြီ။\nလက်ကျန် USD: `{new_usd:,.2f}`", parse_mode="Markdown")
+    bot.reply_to(message, f"✅ User (`{target_user_id}`) ထံသို့ **{amount:,.2f} USD** ထည့်သွင်းပေးလိုက်ပါပြီ။", parse_mode="Markdown")
 
-# 5. Owner Only: /dia Command (Diamonds ဖြည့်ရန်)
+# Owner Only: /dia Command
 @bot.message_handler(commands=["dia"])
 def add_dia(message):
-    if message.from_user.id != OWNER_ID:
+    if not is_owner(message.from_user.id):
         bot.reply_to(message, "❌ ဒီ command က Owner သာ သုံးလို့ရပါတယ်။")
         return
 
@@ -140,19 +136,16 @@ def add_dia(message):
     if message.reply_to_message:
         target_user_id = message.reply_to_message.from_user.id
         if len(args) > 1:
-            try:
-                amount = int(args[1])
-            except ValueError:
-                pass
+            try: amount = int(args[1])
+            except ValueError: pass
     elif len(args) >= 3:
         try:
             target_user_id = int(args[1])
             amount = int(args[2])
-        except ValueError:
-            pass
+        except ValueError: pass
 
     if not target_user_id or amount is None:
-        bot.reply_to(message, "⚠️ အသုံးစနစ်မှားယွင်းနေပါသည်။\nပုံစံ - `/dia <user_id> <amount>` (သို့မဟုတ်) User မက်ဆေ့ချ်ကို Reply လုပ်ပြီး `/dia <amount>` လို့ ပို့ပါ။", parse_mode="Markdown")
+        bot.reply_to(message, "⚠️ ပုံစံ - User မက်ဆေ့ချ်ကို Reply လုပ်ပြီး `/dia <amount>` လို့ ပို့ပါ။", parse_mode="Markdown")
         return
 
     user = users_col.find_one({"user_id": target_user_id})
@@ -163,23 +156,44 @@ def add_dia(message):
         new_dia = amount
         users_col.insert_one({"user_id": target_user_id, "usd": 10000.0, "dia": new_dia})
 
-    bot.reply_to(message, f"✅ အောင်မြင်ပါသည်။ User (`{target_user_id}`) ထံသို့ **{amount} Dia** ထည့်သွင်းပေးလိုက်ပါပြီ။\nလက်ကျန် Dia: `{new_dia}`", parse_mode="Markdown")
+    bot.reply_to(message, f"✅ User (`{target_user_id}`) ထံသို့ **{amount} Dia** ထည့်သွင်းပေးလိုက်ပါပြီ။", parse_mode="Markdown")
 
-# 6. /game Command (လောင်းကြေးခလုတ်များပြသရန်)
+# ပုံထဲပါသော အမိန့်အသစ်များ (Menu features)
+@bot.message_handler(commands=["buyusd"])
+def buy_usd(message):
+    bot.reply_to(message, "💎 Diamond မှ USD သို့ လဲလှယ်ရန် - `/buyusd <dia_amount>` ကို အသုံးပြုပါ။", parse_mode="Markdown")
+
+@bot.message_handler(commands=["giftdia"])
+def gift_dia(message):
+    bot.reply_to(message, "💎 Diamond လက်ဆောင်ပေးရန် User မက်ဆေ့ချ်ကို Reply လုပ်ပြီး `/giftdia <amount>` ဟု ပို့ပါ။", parse_mode="Markdown")
+
+@bot.message_handler(commands=["giftusd"])
+def gift_usd(message):
+    bot.reply_to(message, "💵 USD လက်ဆောင်ပေးရန် User မက်ဆေ့ချ်ကို Reply လုပ်ပြီး `/giftusd <amount>` ဟု ပို့ပါ။", parse_mode="Markdown")
+
+@bot.message_handler(commands=["rpstop"])
+def rpstop(message):
+    top_users = list(users_col.find().sort("usd", -1).limit(5))
+    text = "🏆 **RPS / Wealth Leaderboard (Top 5)**\n\n"
+    for i, u in enumerate(top_users, 1):
+        name = u.get("username", f"User {u['user_id']}")
+        usd = u.get("usd", 0)
+        text += f"{i}. @{name} - `{usd:,.2f} USD`\n"
+    bot.send_message(message.chat.id, text, parse_mode="Markdown")
+
+@bot.message_handler(commands=["searchcard"])
+def search_card(message):
+    bot.reply_to(message, "🔍 ရှာဖွေလိုသော ကဒ်အမည်ကို ထည့်ပါ (ဥပမာ: `/searchcard Granger`)", parse_mode="Markdown")
+
 @bot.message_handler(commands=["game"])
 def game_menu(message):
     markup = telebot.types.InlineKeyboardMarkup(row_width=3)
     bets = [10, 100, 1000, 10000, 100000, 300000, 500000, 1000000]
-    
     buttons = []
     for b in bets:
-        if b < 1000000:
-            label = f"{b:,}"
-            if b == 1000: label = "1k"
-        else:
-            label = f"{b // 1000000}M"
+        label = f"{b:,}" if b < 1000000 else f"{b // 1000000}M"
+        if b == 1000: label = "1k"
         buttons.append(telebot.types.InlineKeyboardButton(f"🎰 {label} USD", callback_data=f"play_{b}"))
-        
     markup.add(*buttons)
     bot.send_message(
         message.chat.id, 
@@ -188,7 +202,6 @@ def game_menu(message):
         reply_markup=markup
     )
 
-# 7. Callback Query (Slot ဂိမ်းကစားခြင်း)
 @bot.callback_query_handler(func=lambda call: call.data.startswith("play_"))
 def play_slot(call):
     user_id = call.from_user.id
@@ -207,7 +220,6 @@ def play_slot(call):
     spin3 = random.choice(symbols)
     
     result_str = f"{spin1} | {spin2} | {spin3}"
-    
     multiplier = 0
     if spin1 == "7" and spin2 == "7" and spin3 == "7":
         multiplier = 30
@@ -220,53 +232,31 @@ def play_slot(call):
         win_amount = bet_amount * multiplier
         new_usd = current_usd + win_amount
         users_col.update_one({"user_id": user_id}, {"$set": {"usd": new_usd}})
-        msg = (
-            f"🎰 **SLOT GAME RESULT** 🎰\n\n"
-            f"ရလဒ်: {result_str}\n\n"
-            f"🎉 ဂုဏ်ယူပါတယ် yaung! **{multiplier}x** ဖြင့် **{win_amount:,} USD** နိုင်သွားပါပြီ!\n"
-            f"💰 လက်ကျန်ငွေ: `{new_usd:,.2f} USD`"
-        )
+        msg = f"🎰 **SLOT GAME RESULT** 🎰\n\nရလဒ်: {result_str}\n\n🎉 ဂုဏ်ယူပါတယ် yaung! **{multiplier}x** ဖြင့် **{win_amount:,} USD** နိုင်သွားပါပြီ!\n💰 လက်ကျန်ငွေ: `{new_usd:,.2f} USD`"
     else:
         new_usd = current_usd - bet_amount
         users_col.update_one({"user_id": user_id}, {"$set": {"usd": new_usd}})
-        msg = (
-            f"🎰 **SLOT GAME RESULT** 🎰\n\n"
-            f"ရလဒ်: {result_str}\n\n"
-            f"😢 စိတ်မကောင်းပါဘူး yaung, ရှုံးသွားပါတယ်။\n"
-            f"💸 လောင်းကြေး `- {bet_amount:,} USD`\n"
-            f"💰 လက်ကျန်ငွေ: `{new_usd:,.2f} USD`"
-        )
+        msg = f"🎰 **SLOT GAME RESULT** 🎰\n\nရလဒ်: {result_str}\n\n😢 စိတ်မကောင်းပါဘူး yaung, ရှုံးသွားပါတယ်။\n💸 လောင်းကြေး `- {bet_amount:,} USD`\n💰 လက်ကျန်ငွေ: `{new_usd:,.2f} USD`"
         
-    bot.edit_message_text(
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
-        text=msg,
-        parse_mode="Markdown"
-    )
+    bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=msg, parse_mode="Markdown")
 
 @bot.message_handler(commands=["dice"])
-def dice(message):
-    bot.send_dice(message.chat.id, emoji='🎲')
+def dice(message): bot.send_dice(message.chat.id, emoji='🎲')
 
 @bot.message_handler(commands=["bowling"])
-def bowling(message):
-    bot.send_dice(message.chat.id, emoji='🎳')
+def bowling(message): bot.send_dice(message.chat.id, emoji='🎳')
 
 @bot.message_handler(commands=["football"])
-def football(message):
-    bot.send_dice(message.chat.id, emoji='⚽')
+def football(message): bot.send_dice(message.chat.id, emoji='⚽')
 
 @bot.message_handler(commands=["basketball"])
-def basketball(message):
-    bot.send_dice(message.chat.id, emoji='🏀')
+def basketball(message): bot.send_dice(message.chat.id, emoji='🏀')
 
 @bot.message_handler(commands=["slot"])
-def slot_command(message):
-    game_menu(message)
+def slot_command(message): game_menu(message)
 
 @bot.message_handler(commands=["dart"])
-def dart(message):
-    bot.send_dice(message.chat.id, emoji='🎯')
+def dart(message): bot.send_dice(message.chat.id, emoji='🎯')
 
 if __name__ == "__main__":
     t = Thread(target=run)
