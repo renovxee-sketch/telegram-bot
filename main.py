@@ -1,5 +1,4 @@
 import os
-import random
 import telebot
 from flask import Flask
 from threading import Thread
@@ -7,10 +6,12 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 TOKEN = os.getenv("BOT_TOKEN")
 
-# ================= OWNER =================
+# ==================================================
+# OWNER ID
+# ==================================================
 
 # ဒီနေရာမှာ သင့် Telegram ID ထည့်ပါ
-OWNER_ID = 8032394583
+OWNER_ID = 123456789
 
 if not TOKEN:
     raise RuntimeError(
@@ -20,12 +21,15 @@ if not TOKEN:
 bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
 
-# ================= USERS =================
+# ==================================================
+# USER DATA
+# ==================================================
 
 users = {}
 
 
 def get_user(user_id):
+
     if user_id not in users:
         users[user_id] = {
             "usd": 10000,
@@ -35,12 +39,18 @@ def get_user(user_id):
     return users[user_id]
 
 
+# ==================================================
+# WEB SERVER
+# ==================================================
+
 @app.route("/")
 def home():
     return "Game Bot is running!"
 
 
-# ================= START =================
+# ==================================================
+# START
+# ==================================================
 
 @bot.message_handler(commands=["start"])
 def start(message):
@@ -65,28 +75,3 @@ def start(message):
     keyboard.add(
         InlineKeyboardButton(
             "➕ Add Me Your GP",
-            url="https://t.me/Ruifineshyt_bot?startgroup=true"
-        )
-    )
-
-    bot.send_message(
-        message.chat.id,
-        text,
-        reply_markup=keyboard,
-        parse_mode="HTML"
-    )
-
-
-# ================= BALANCE =================
-
-@bot.message_handler(commands=["balance"])
-def balance(message):
-
-    user_id = message.from_user.id
-    user_name = message.from_user.first_name or "Player"
-
-    user = get_user(user_id)
-
-    text = (
-        f'👤 <a href="tg://user?id={user_id}">{user_name}</a>\n\n'
-        '💰
