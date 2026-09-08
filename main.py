@@ -3,8 +3,13 @@ import telebot
 import threading
 from flask import Flask
 
-# Balance system ကို ချိတ်ခြင်း
+# =========================
+# IMPORT OTHER PY FILES
+# =========================
+
 from balance import register_balance_handlers
+from game import register_game_handlers
+from gift import register_gift_handlers
 
 
 # =========================
@@ -21,18 +26,23 @@ if not BOT_TOKEN:
 # TELEGRAM BOT
 # =========================
 
-bot = telebot.TeleBot(BOT_TOKEN)
+bot = telebot.TeleBot(
+    BOT_TOKEN,
+    parse_mode="HTML"
+)
 
 
 # =========================
-# BALANCE.PY ချိတ်ခြင်း
+# REGISTER ALL SYSTEMS
 # =========================
 
 register_balance_handlers(bot)
+register_game_handlers(bot)
+register_gift_handlers(bot)
 
 
 # =========================
-# FLASK
+# FLASK WEB SERVER
 # =========================
 
 app = Flask(__name__)
@@ -40,7 +50,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def home():
-    return "Bot is running!"
+    return "Casino Bot is running!"
 
 
 def run_flask():
@@ -68,10 +78,12 @@ if __name__ == "__main__":
 
     flask_thread.start()
 
-    print("Bot is running...")
+    print("🎰 Casino Bot is running...")
 
+    # Webhook ရှိနေရင် ဖျက်မယ်
     bot.remove_webhook()
 
+    # Bot စတင်မယ်
     bot.infinity_polling(
         skip_pending=True,
         timeout=30,
