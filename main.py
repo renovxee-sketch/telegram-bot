@@ -1,15 +1,16 @@
 import os
-import telebot
 import threading
+import telebot
 from flask import Flask
 
 # =========================
-# IMPORT OTHER PY FILES
+# IMPORT ALL SYSTEM FILES
 # =========================
 
 from balance import register_balance_handlers
 from game import register_game_handlers
 from gift import register_gift_handlers
+from start import register_start_handlers
 
 
 # =========================
@@ -23,7 +24,7 @@ if not BOT_TOKEN:
 
 
 # =========================
-# TELEGRAM BOT
+# CREATE TELEGRAM BOT
 # =========================
 
 bot = telebot.TeleBot(
@@ -33,16 +34,17 @@ bot = telebot.TeleBot(
 
 
 # =========================
-# REGISTER ALL SYSTEMS
+# REGISTER ALL HANDLERS
 # =========================
 
+register_start_handlers(bot)
 register_balance_handlers(bot)
 register_game_handlers(bot)
 register_gift_handlers(bot)
 
 
 # =========================
-# FLASK WEB SERVER
+# FLASK SERVER
 # =========================
 
 app = Flask(__name__)
@@ -50,14 +52,12 @@ app = Flask(__name__)
 
 @app.route("/")
 def home():
-    return "Casino Bot is running!"
+    return "🎰 Casino Bot is running!"
 
 
 def run_flask():
 
-    port = int(
-        os.environ.get("PORT", 10000)
-    )
+    port = int(os.environ.get("PORT", 10000))
 
     app.run(
         host="0.0.0.0",
@@ -80,10 +80,9 @@ if __name__ == "__main__":
 
     print("🎰 Casino Bot is running...")
 
-    # Webhook ရှိနေရင် ဖျက်မယ်
+    # Webhook ဖျက်ပြီး Polling အသုံးပြုမယ်
     bot.remove_webhook()
 
-    # Bot စတင်မယ်
     bot.infinity_polling(
         skip_pending=True,
         timeout=30,
