@@ -1,6 +1,7 @@
 import os
 from pymongo import MongoClient
 
+
 # =========================
 # MONGODB CONNECTION
 # =========================
@@ -10,13 +11,22 @@ MONGO_URI = os.getenv("MONGO_URI")
 if not MONGO_URI:
     raise ValueError("MONGO_URI is not set")
 
+
 client = MongoClient(MONGO_URI)
 
 db = client["casino_bot"]
+
 users_collection = db["users"]
 
-# User ID တစ်ယောက်ကို တစ်ခုတည်း
-users_collection.create_index("user_id", unique=True)
+
+# =========================
+# UNIQUE USER ID
+# =========================
+
+users_collection.create_index(
+    "user_id",
+    unique=True
+)
 
 
 # =========================
@@ -24,15 +34,14 @@ users_collection.create_index("user_id", unique=True)
 # =========================
 
 def get_user(user):
-    """User ကို Database မှာ ရှာသည်"""
 
     user_id = user.id
 
-    existing = users_collection.find_one({
-        "user_id": user_id
-    })
+    existing = users_collection.find_one(
+        {"user_id": user_id}
+    )
 
-    # User ရှိပြီးသားဆိုရင် Name Update
+    # User ရှိပြီးသား
     if existing:
 
         users_collection.update_one(
@@ -45,11 +54,11 @@ def get_user(user):
             }
         )
 
-        return users_collection.find_one({
-            "user_id": user_id
-        })
+        return users_collection.find_one(
+            {"user_id": user_id}
+        )
 
-    # User မရှိသေးရင် Bonus မပေးဘဲ 0 နဲ့ဖန်တီး
+    # User အသစ်
     new_user = {
         "user_id": user_id,
         "name": user.first_name or "User",
@@ -61,9 +70,9 @@ def get_user(user):
 
     users_collection.insert_one(new_user)
 
-    return users_collection.find_one({
-        "user_id": user_id
-    })
+    return users_collection.find_one(
+        {"user_id": user_id}
+    )
 
 
 # =========================
@@ -71,7 +80,6 @@ def get_user(user):
 # =========================
 
 def update_balance(user_id, usd_change=0, dia_change=0):
-    """USD / DIA Balance ပြောင်းရန်"""
 
     users_collection.update_one(
         {"user_id": user_id},
@@ -90,6 +98,6 @@ def update_balance(user_id, usd_change=0, dia_change=0):
 
 def get_user_by_id(user_id):
 
-    return users_collection.find_one({
-        "user_id": user_id
-    })
+    return users_collection.find_one(
+        {"user_id": user_id}
+    )
