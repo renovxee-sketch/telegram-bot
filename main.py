@@ -3,10 +3,6 @@ import threading
 import telebot
 from flask import Flask
 
-# =========================
-# IMPORT ALL SYSTEM FILES
-# =========================
-
 from balance import register_balance_handlers
 from game import register_game_handlers
 from gift import register_gift_handlers
@@ -24,7 +20,7 @@ if not BOT_TOKEN:
 
 
 # =========================
-# CREATE TELEGRAM BOT
+# BOT
 # =========================
 
 bot = telebot.TeleBot(
@@ -34,7 +30,7 @@ bot = telebot.TeleBot(
 
 
 # =========================
-# REGISTER ALL HANDLERS
+# REGISTER HANDLERS
 # =========================
 
 register_start_handlers(bot)
@@ -44,7 +40,7 @@ register_gift_handlers(bot)
 
 
 # =========================
-# FLASK SERVER
+# FLASK WEB SERVER
 # =========================
 
 app = Flask(__name__)
@@ -52,39 +48,53 @@ app = Flask(__name__)
 
 @app.route("/")
 def home():
-    return "🎰 Casino Bot is running!"
+    return "Casino Bot is Running!"
 
 
-def run_flask():
-
-    port = int(os.environ.get("PORT", 10000))
-
-    app.run(
-        host="0.0.0.0",
-        port=port
-    )
+@app.route("/health")
+def health():
+    return "OK"
 
 
 # =========================
-# START BOT
+# BOT RUN
 # =========================
 
-if __name__ == "__main__":
+def run_bot():
 
-    flask_thread = threading.Thread(
-        target=run_flask,
-        daemon=True
-    )
+    print("🎰 Telegram Bot Starting...")
 
-    flask_thread.start()
-
-    print("🎰 Casino Bot is running...")
-
-    # Webhook ဖျက်ပြီး Polling အသုံးပြုမယ်
+    # Webhook ဖျက်ပြီး polling အသုံးပြု
     bot.remove_webhook()
 
     bot.infinity_polling(
         skip_pending=True,
-        timeout=30,
-        long_polling_timeout=30
+        timeout=20,
+        long_polling_timeout=20
+    )
+
+
+# =========================
+# MAIN
+# =========================
+
+if __name__ == "__main__":
+
+    # Telegram Bot ကို Background Thread မှာ Run
+    bot_thread = threading.Thread(
+        target=run_bot,
+        daemon=True
+    )
+
+    bot_thread.start()
+
+    # Render PORT
+    port = int(os.environ.get("PORT", 10000))
+
+    print(f"🌐 Web Server starting on port {port}")
+
+    # Flask ကို Main Thread မှာ Run
+    app.run(
+        host="0.0.0.0",
+        port=port
     )
