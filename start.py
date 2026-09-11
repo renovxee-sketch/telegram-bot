@@ -59,9 +59,10 @@ def register_start_handlers(bot):
 
         markup = types.InlineKeyboardMarkup()
 
+        # Add Group Button
         markup.add(
             types.InlineKeyboardButton(
-                "➕ Add Me Your Group",
+                "➕  ADD ME TO YOUR GROUP  ➕",
                 url="https://t.me/Ruifineshyt_bot?startgroup=true"
             )
         )
