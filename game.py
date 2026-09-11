@@ -502,4 +502,4 @@ def register_game_handlers(bot):
             result_text,
             reply_markup=create_bet_keyboard(owner_id),
             parse_mode="HTML"
-        )
+            )
