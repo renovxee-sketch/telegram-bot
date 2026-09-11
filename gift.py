@@ -104,6 +104,7 @@ def register_gift_handlers(bot):
             "receiver_name": receiver.first_name or "User"
         }
 
+        # Confirm / Cancel Buttons
         markup = types.InlineKeyboardMarkup()
 
         markup.row(
@@ -178,6 +179,7 @@ def register_gift_handlers(bot):
         sender = message.from_user
         receiver = message.reply_to_message.from_user
 
+        # Bot ကို Gift မပေးနိုင်
         if receiver.is_bot:
             bot.reply_to(
                 message,
@@ -185,6 +187,7 @@ def register_gift_handlers(bot):
             )
             return
 
+        # ကိုယ့်ကိုယ်ကို မပေးနိုင်
         if sender.id == receiver.id:
             bot.reply_to(
                 message,
@@ -214,6 +217,7 @@ def register_gift_handlers(bot):
             "receiver_name": receiver.first_name or "User"
         }
 
+        # Confirm / Cancel Buttons
         markup = types.InlineKeyboardMarkup()
 
         markup.row(
@@ -273,7 +277,10 @@ def register_gift_handlers(bot):
 
         amount = gift["amount"]
 
-        # Balance ထပ်စစ်
+        # ==========================================
+        # USD GIFT
+        # ==========================================
+
         if gift["type"] == "usd":
 
             if sender_data.get("usd", 0) < amount:
@@ -287,19 +294,23 @@ def register_gift_handlers(bot):
                 pending_gifts.pop(key, None)
                 return
 
+            # Sender USD လျှော့
             update_balance(
                 gift["sender_id"],
                 usd_change=-amount
             )
 
-            # Receiver Database မရှိသေးရင်
-            # သူ့ account ကို create လုပ်ဖို့ user_id ဖြင့် update
+            # Receiver USD တိုး
             update_balance(
                 gift["receiver_id"],
                 usd_change=amount
             )
 
             currency_text = f"💵 ${money(amount)} USD"
+
+        # ==========================================
+        # DIA GIFT
+        # ==========================================
 
         else:
 
@@ -314,11 +325,13 @@ def register_gift_handlers(bot):
                 pending_gifts.pop(key, None)
                 return
 
+            # Sender DIA လျှော့
             update_balance(
                 gift["sender_id"],
                 dia_change=-amount
             )
 
+            # Receiver DIA တိုး
             update_balance(
                 gift["receiver_id"],
                 dia_change=amount
@@ -326,6 +339,7 @@ def register_gift_handlers(bot):
 
             currency_text = f"💎 {money(amount)} DIA"
 
+        # Pending Gift ဖျက်
         pending_gifts.pop(key, None)
 
         bot.answer_callback_query(
@@ -333,7 +347,9 @@ def register_gift_handlers(bot):
             "✅ Gift Successfully Sent!"
         )
 
+        # Confirmation Message ပြောင်း
         try:
+
             bot.edit_message_text(
                 "🎁 <b>GIFT SUCCESSFUL!</b>\n\n"
                 f"👤 From: {gift['sender_name']}\n"
@@ -344,6 +360,7 @@ def register_gift_handlers(bot):
                 call.message.message_id,
                 parse_mode="HTML"
             )
+
         except Exception:
             pass
 
@@ -382,6 +399,7 @@ def register_gift_handlers(bot):
 
             return
 
+        # Pending Gift ဖျက်
         pending_gifts.pop(key, None)
 
         bot.answer_callback_query(
@@ -389,8 +407,16 @@ def register_gift_handlers(bot):
             "❌ Gift Cancelled"
         )
 
+        # Cancelled Message ပြောင်း
         try:
 
             bot.edit_message_text(
                 "❌ <b>GIFT CANCELLED</b>\n\n"
-                "ဒီ Gift Transaction ကို Cancel လုပ်လိုက်ပါ
+                "ဒီ Gift Transaction ကို Cancel လုပ်လိုက်ပါ!",
+                call.message.chat.id,
+                call.message.message_id,
+                parse_mode="HTML"
+            )
+
+        except Exception:
+            pass
