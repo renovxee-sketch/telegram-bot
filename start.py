@@ -9,15 +9,11 @@ def register_start_handlers(bot):
 
         user = message.from_user
 
-        # Database မှာ User ရှိ/မရှိ စစ်
         existing_user = users_collection.find_one(
             {"user_id": user.id}
         )
 
-        # =========================
-        # USER အသစ်
-        # =========================
-
+        # User အသစ်ဆိုရင် Bonus တစ်ကြိမ်ပဲပေးမယ်
         if not existing_user:
 
             users_collection.insert_one({
@@ -29,22 +25,9 @@ def register_start_handlers(bot):
                 "welcome_bonus": True
             })
 
-            text = (
-                "🎉 <b>WELCOME TO CASINO BOT!</b>\n\n"
-                "🎁 <b>FREE START BONUS</b>\n\n"
-                "💵 USD ┃ $50,000\n"
-                "💎 DIA ┃ 500💎\n\n"
-                "━━━━━━━━━━━━━━━━━━━━\n"
-                "🍀 ကံကောင်းတဲ့ Casino Game တွေကို စတင်ကစားလိုက်ပါ!"
-            )
-
-        # =========================
-        # USER အဟောင်း
-        # =========================
-
         else:
 
-            # Name / Username Update
+            # Balance ကို မထိဘဲ Name / Username ပဲ update
             users_collection.update_one(
                 {"user_id": user.id},
                 {
@@ -55,36 +38,37 @@ def register_start_handlers(bot):
                 }
             )
 
-            text = (
-                "🎰 <b>WELCOME BACK!</b>\n\n"
-                "Casino မှာ ပြန်လည်ကစားနိုင်ပါပြီ 🍀"
+        # MongoDB ထဲက လက်ရှိ balance ကိုယူ
+        current_user = users_collection.find_one(
+            {"user_id": user.id}
+        )
+
+        usd = int(current_user.get("usd", 0))
+        dia = int(current_user.get("dia", 0))
+
+        name = user.first_name or "User"
+
+        text = (
+            f"👋 မင်္ဂလာပါ <b>{name}</b> ({user.id})!\n\n"
+            "🎮 ဂိမ်းကစားရန် Bot မှ ကြိုဆိုပါတယ်!\n\n"
+            f"💎 Diamonds: {dia:,} 💎\n"
+            f"💵 USD: ${usd:,} USD\n\n"
+            "👇 အောက်ပါခလုတ်ကိုနှိပ်ပြီး Group ထဲသို့ "
+            "ထည့်သွင်းနိုင်ပါသည်!"
+        )
+
+        markup = types.InlineKeyboardMarkup()
+
+        markup.add(
+            types.InlineKeyboardButton(
+                "➕ Add Me Your Group",
+                url="https://t.me/Ruifineshyt_bot?startgroup=true"
             )
-
-        # =========================
-        # START MENU BUTTONS
-        # =========================
-
-        markup = types.ReplyKeyboardMarkup(
-            resize_keyboard=True,
-            row_width=2
-        )
-
-        markup.row(
-            types.KeyboardButton("/start"),
-            types.KeyboardButton("/balance")
-        )
-
-        markup.row(
-            types.KeyboardButton("/game"),
-            types.KeyboardButton("/giftusd")
-        )
-
-        markup.row(
-            types.KeyboardButton("/giftdia")
         )
 
         bot.send_message(
             message.chat.id,
             text,
-            reply_markup=markup
+            reply_markup=markup,
+            parse_mode="HTML"
         )
