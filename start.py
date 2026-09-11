@@ -24,7 +24,7 @@ def register_start_handlers(bot):
                 "user_id": user.id,
                 "name": user.first_name or "User",
                 "username": user.username or "",
-                "usd": 20000,
+                "usd": 50000,
                 "dia": 500,
                 "welcome_bonus": True
             })
@@ -32,7 +32,7 @@ def register_start_handlers(bot):
             text = (
                 "🎉 <b>WELCOME TO CASINO BOT!</b>\n\n"
                 "🎁 <b>FREE START BONUS</b>\n\n"
-                "💵 USD ┃ $20,000\n"
+                "💵 USD ┃ $50,000\n"
                 "💎 DIA ┃ 500💎\n\n"
                 "━━━━━━━━━━━━━━━━━━━━\n"
                 "🍀 ကံကောင်းတဲ့ Casino Game တွေကို စတင်ကစားလိုက်ပါ!"
@@ -70,18 +70,21 @@ def register_start_handlers(bot):
         )
 
         markup.row(
-            types.KeyboardButton("/balance"),
-            types.KeyboardButton("/game")
+            types.KeyboardButton("/start"),
+            types.KeyboardButton("/balance")
         )
 
         markup.row(
-            types.KeyboardButton("/giftusd"),
+            types.KeyboardButton("/game"),
+            types.KeyboardButton("/giftusd")
+        )
+
+        markup.row(
             types.KeyboardButton("/giftdia")
         )
 
-        bot.reply_to(
-            message,
+        bot.send_message(
+            message.chat.id,
             text,
-            reply_markup=markup,
-            parse_mode="HTML"
+            reply_markup=markup
         )
