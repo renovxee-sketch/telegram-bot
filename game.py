@@ -28,18 +28,21 @@ def create_bet_keyboard(owner_id):
         types.InlineKeyboardButton(
             "💵 100 USD",
             callback_data=f"slot_bet:{owner_id}:100"
-        ),
-        types.InlineKeyboardButton(
-            "💵 1K USD",
-            callback_data=f"slot_bet:{owner_id}:1000"
         )
     )
 
     markup.row(
         types.InlineKeyboardButton(
+            "💵 1K USD",
+            callback_data=f"slot_bet:{owner_id}:1000"
+        ),
+        types.InlineKeyboardButton(
             "💵 5K USD",
             callback_data=f"slot_bet:{owner_id}:5000"
-        ),
+        )
+    )
+
+    markup.row(
         types.InlineKeyboardButton(
             "💵 10K USD",
             callback_data=f"slot_bet:{owner_id}:10000"
@@ -58,7 +61,11 @@ def create_bet_keyboard(owner_id):
         types.InlineKeyboardButton(
             "💵 500K USD",
             callback_data=f"slot_bet:{owner_id}:500000"
-        ),
+        )
+    )
+
+    # 1M တစ်ခုတည်း — အရှည်ကြီး
+    markup.row(
         types.InlineKeyboardButton(
             "💵 1M USD",
             callback_data=f"slot_bet:{owner_id}:1000000"
@@ -78,7 +85,7 @@ def create_play_keyboard(owner_id):
 
     markup.add(
         types.InlineKeyboardButton(
-            "🎰 Play Slot Machine",
+            "🎰 PLAY SLOT",
             callback_data=f"slot_play:{owner_id}"
         )
     )
@@ -98,10 +105,11 @@ def register_game_handlers(bot):
         user = message.from_user
 
         text = (
-            "🎰 <b>CASINO SLOT MACHINE</b>\n\n"
-            f"👤 Player: {mention_user(user)}\n\n"
-            "🎰 <b>Try your luck!</b>\n"
-            "💰 Choose your bet and spin."
+            "🎰 <b>CASINO SLOT</b>\n\n"
+            f"👤 {mention_user(user)}\n"
+            f"💵 {money(get_user(user).get('usd', 0))} USD  "
+            f"💎 {money(get_user(user).get('dia', 0))} DIA\n\n"
+            "🍀 ကံစမ်းပြီး ဆော့လိုက်ပါ!"
         )
 
         bot.send_message(
@@ -145,8 +153,8 @@ def register_game_handlers(bot):
         user = call.from_user
 
         text = (
-            "🎰 <b>CASINO SLOT MACHINE</b>\n\n"
-            f"👤 Player: {mention_user(user)}\n\n"
+            "🎰 <b>CASINO SLOT</b>\n\n"
+            f"👤 {mention_user(user)}\n\n"
             "💵 <b>Bet Amount ရွေးပါ</b>"
         )
 
@@ -301,4 +309,26 @@ def register_game_handlers(bot):
                 "🎉 <b>YOU WIN!</b> 🎉\n\n"
                 f"🎰 Result: <b>{a} | {b} | {c}</b>\n\n"
                 f"💵 Bet: {money(bet)} USD\n"
-                f"🔥 Multiplier: <b>{multiplier}x
+                f"🔥 Multiplier: <b>{multiplier}x</b>\n"
+                f"💰 Win: <b>+{money(win_amount)} USD</b>\n\n"
+                f"💳 Balance: <b>{money(new_balance)} USD</b>"
+            )
+
+        else:
+
+            final_user = get_user(call.from_user)
+            new_balance = int(final_user.get("usd", 0))
+
+            result_text = (
+                "😢 <b>YOU LOSE!</b>\n\n"
+                f"🎰 Result: <b>{a} | {b} | {c}</b>\n\n"
+                f"💸 Loss: <b>-{money(bet)} USD</b>\n"
+                f"💳 Balance: <b>{money(new_balance)} USD</b>"
+            )
+
+        # Reply to slot animation
+        bot.reply_to(
+            slot_message,
+            result_text,
+            reply_markup=create_bet_keyboard(owner_id)
+        )
