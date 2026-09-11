@@ -1,34 +1,83 @@
+import time
 from telebot import types
 from database import get_user, update_balance
 
 
 # ==========================================
-# Pending Gift
+# Money Format
 # ==========================================
-
-pending_gifts = {}
-
 
 def money(value):
     return f"{int(value):,}"
 
 
 # ==========================================
-# Confirm / Cancel Keyboard
+# User Mention
 # ==========================================
 
-def create_confirm_keyboard(key):
+def mention_user(user):
+
+    name = user.first_name or "User"
+
+    return f'<a href="tg://user?id={user.id}">{name}</a>'
+
+
+# ==========================================
+# Bet Keyboard
+# ==========================================
+
+def create_bet_keyboard(owner_id):
 
     markup = types.InlineKeyboardMarkup()
 
     markup.row(
         types.InlineKeyboardButton(
-            "✅ CONFIRM",
-            callback_data=f"gift_confirm:{key}"
+            "💵 10 USD",
+            callback_data=f"slot_bet:{owner_id}:10"
         ),
         types.InlineKeyboardButton(
-            "❌ CANCEL",
-            callback_data=f"gift_cancel:{key}"
+            "💵 100 USD",
+            callback_data=f"slot_bet:{owner_id}:100"
+        )
+    )
+
+    markup.row(
+        types.InlineKeyboardButton(
+            "💵 1K USD",
+            callback_data=f"slot_bet:{owner_id}:1000"
+        ),
+        types.InlineKeyboardButton(
+            "💵 5K USD",
+            callback_data=f"slot_bet:{owner_id}:5000"
+        )
+    )
+
+    markup.row(
+        types.InlineKeyboardButton(
+            "💵 10K USD",
+            callback_data=f"slot_bet:{owner_id}:10000"
+        ),
+        types.InlineKeyboardButton(
+            "💵 100K USD",
+            callback_data=f"slot_bet:{owner_id}:100000"
+        )
+    )
+
+    markup.row(
+        types.InlineKeyboardButton(
+            "💵 300K USD",
+            callback_data=f"slot_bet:{owner_id}:300000"
+        ),
+        types.InlineKeyboardButton(
+            "💵 500K USD",
+            callback_data=f"slot_bet:{owner_id}:500000"
+        )
+    )
+
+    markup.row(
+        types.InlineKeyboardButton(
+            "💵 1M USD",
+            callback_data=f"slot_bet:{owner_id}:1000000"
         )
     )
 
@@ -36,508 +85,421 @@ def create_confirm_keyboard(key):
 
 
 # ==========================================
-# Gift Handlers
+# Play Button
 # ==========================================
 
-def register_gift_handlers(bot):
+def create_play_keyboard(owner_id):
+
+    markup = types.InlineKeyboardMarkup()
+
+    markup.add(
+        types.InlineKeyboardButton(
+            "🎰 PLAY SLOT",
+            callback_data=f"slot_play:{owner_id}"
+        )
+    )
+
+    return markup
+
+
+# ==========================================
+# Game Handlers
+# ==========================================
+
+def register_game_handlers(bot):
+
 
     # ==========================================
-    # /giftusd
+    # /game
     # ==========================================
 
-    @bot.message_handler(commands=["giftusd"])
-    def gift_usd(message):
+    @bot.message_handler(commands=["game"])
+    def game_command(message):
 
-        if not message.reply_to_message:
+        user = message.from_user
+        user_data = get_user(user)
 
-            bot.reply_to(
-                message,
-                "🎁 <b>USD GIFT</b>\n\n"
-                "💵 Gift ပေးမယ့်သူရဲ့ message ကို Reply လုပ်ပါ။\n\n"
-                "အသုံးပြုပုံ\n"
-                "➜ <code>/giftusd 1000</code>",
-                parse_mode="HTML"
-            )
+        usd = int(user_data.get("usd", 0))
+        dia = int(user_data.get("dia", 0))
 
-            return
+        text = (
+            "🎰 <b>CASINO SLOT</b>\n\n"
+            f"👤 {mention_user(user)}\n"
+            f"💵 {money(usd)} USD  "
+            f"💎 {money(dia)} DIA\n\n"
+            "🍀 ကံစမ်းပြီး ဆော့လိုက်ပါ!"
+        )
 
-        parts = message.text.split()
-
-        if len(parts) != 2:
-
-            bot.reply_to(
-                message,
-                "❌ <b>Amount မှားနေပါတယ်!</b>\n\n"
-                "ဥပမာ ➜ <code>/giftusd 1000</code>",
-                parse_mode="HTML"
-            )
-
-            return
-
-        try:
-            amount = int(parts[1])
-
-        except ValueError:
-
-            bot.reply_to(
-                message,
-                "❌ Amount ကို နံပါတ်နဲ့ပဲ ထည့်ပါ။"
-            )
-
-            return
-
-        if amount <= 0:
-
-            bot.reply_to(
-                message,
-                "❌ Amount က 0 ထက်ကြီးရပါမယ်။"
-            )
-
-            return
-
-        sender = message.from_user
-        receiver = message.reply_to_message.from_user
-
-        if receiver.is_bot:
-
-            bot.reply_to(
-                message,
-                "❌ Bot ကို Gift ပေးလို့မရပါ။"
-            )
-
-            return
-
-        if sender.id == receiver.id:
-
-            bot.reply_to(
-                message,
-                "❌ ကိုယ့်ကိုယ်ကို Gift ပေးလို့မရပါ။"
-            )
-
-            return
-
-        sender_data = get_user(sender)
-
-        if not sender_data:
-
-            bot.reply_to(
-                message,
-                "❌ Account မတွေ့ပါ။\n"
-                "/start အရင်လုပ်ပါ။"
-            )
-
-            return
-
-        balance = int(sender_data.get("usd", 0))
-
-        if balance < amount:
-
-            bot.reply_to(
-                message,
-                "💸 <b>USD မလုံလောက်ပါ!</b>\n\n"
-                f"💵 လက်ကျန်: <b>${money(balance)}</b>",
-                parse_mode="HTML"
-            )
-
-            return
-
-        # Receiver account ရှိအောင် ဖန်တီး/Update
-        get_user(receiver)
-
-        key = f"{message.chat.id}_{message.message_id}"
-
-        pending_gifts[key] = {
-            "type": "usd",
-            "amount": amount,
-            "sender_id": sender.id,
-            "receiver_id": receiver.id,
-            "sender_name": sender.first_name or "User",
-            "receiver_name": receiver.first_name or "User"
-        }
-
-        bot.reply_to(
-            message,
-            "🎁 <b>USD GIFT</b>\n\n"
-            f"👤 From: <b>{sender.first_name or 'User'}</b>\n"
-            f"👤 To: <b>{receiver.first_name or 'User'}</b>\n\n"
-            f"💵 Amount: <b>${money(amount)} USD</b>\n\n"
-            "⚡ Gift ပေးမယ်ဆိုရင်\n"
-            "<b>CONFIRM</b> ကိုနှိပ်ပါ 👇",
-            reply_markup=create_confirm_keyboard(key),
+        bot.send_message(
+            message.chat.id,
+            text,
+            reply_markup=create_play_keyboard(user.id),
             parse_mode="HTML"
         )
 
 
     # ==========================================
-    # /giftdia
-    # ==========================================
-
-    @bot.message_handler(commands=["giftdia"])
-    def gift_dia(message):
-
-        if not message.reply_to_message:
-
-            bot.reply_to(
-                message,
-                "🎁 <b>DIA GIFT</b>\n\n"
-                "💎 Gift ပေးမယ့်သူရဲ့ message ကို Reply လုပ်ပါ။\n\n"
-                "အသုံးပြုပုံ\n"
-                "➜ <code>/giftdia 100</code>",
-                parse_mode="HTML"
-            )
-
-            return
-
-        parts = message.text.split()
-
-        if len(parts) != 2:
-
-            bot.reply_to(
-                message,
-                "❌ <b>Amount မှားနေပါတယ်!</b>\n\n"
-                "ဥပမာ ➜ <code>/giftdia 100</code>",
-                parse_mode="HTML"
-            )
-
-            return
-
-        try:
-            amount = int(parts[1])
-
-        except ValueError:
-
-            bot.reply_to(
-                message,
-                "❌ Amount ကို နံပါတ်နဲ့ပဲ ထည့်ပါ။"
-            )
-
-            return
-
-        if amount <= 0:
-
-            bot.reply_to(
-                message,
-                "❌ Amount က 0 ထက်ကြီးရပါမယ်။"
-            )
-
-            return
-
-        sender = message.from_user
-        receiver = message.reply_to_message.from_user
-
-        if receiver.is_bot:
-
-            bot.reply_to(
-                message,
-                "❌ Bot ကို Gift ပေးလို့မရပါ။"
-            )
-
-            return
-
-        if sender.id == receiver.id:
-
-            bot.reply_to(
-                message,
-                "❌ ကိုယ့်ကိုယ်ကို Gift ပေးလို့မရပါ။"
-            )
-
-            return
-
-        sender_data = get_user(sender)
-
-        if not sender_data:
-
-            bot.reply_to(
-                message,
-                "❌ Account မတွေ့ပါ။\n"
-                "/start အရင်လုပ်ပါ။"
-            )
-
-            return
-
-        balance = int(sender_data.get("dia", 0))
-
-        if balance < amount:
-
-            bot.reply_to(
-                message,
-                "💎 <b>DIA မလုံလောက်ပါ!</b>\n\n"
-                f"💎 လက်ကျန်: <b>{money(balance)} DIA</b>",
-                parse_mode="HTML"
-            )
-
-            return
-
-        # Receiver account ရှိအောင် ဖန်တီး/Update
-        get_user(receiver)
-
-        key = f"{message.chat.id}_{message.message_id}"
-
-        pending_gifts[key] = {
-            "type": "dia",
-            "amount": amount,
-            "sender_id": sender.id,
-            "receiver_id": receiver.id,
-            "sender_name": sender.first_name or "User",
-            "receiver_name": receiver.first_name or "User"
-        }
-
-        bot.reply_to(
-            message,
-            "🎁 <b>DIA GIFT</b>\n\n"
-            f"👤 From: <b>{sender.first_name or 'User'}</b>\n"
-            f"👤 To: <b>{receiver.first_name or 'User'}</b>\n\n"
-            f"💎 Amount: <b>{money(amount)} DIA</b>\n\n"
-            "⚡ Gift ပေးမယ်ဆိုရင်\n"
-            "<b>CONFIRM</b> ကိုနှိပ်ပါ 👇",
-            reply_markup=create_confirm_keyboard(key),
-            parse_mode="HTML"
-        )
-
-
-    # ==========================================
-    # CONFIRM
+    # PLAY SLOT
     # ==========================================
 
     @bot.callback_query_handler(
-        func=lambda call: call.data.startswith("gift_confirm:")
+        func=lambda call: call.data.startswith("slot_play:")
     )
-    def confirm_gift(call):
+    def play_slot(call):
 
-        key = call.data.replace(
-            "gift_confirm:",
-            "",
-            1
+        owner_id = int(
+            call.data.split(":")[1]
         )
 
-        if key not in pending_gifts:
+        # Game Owner Protection
+        if call.from_user.id != owner_id:
 
             bot.answer_callback_query(
                 call.id,
-                "❌ ဒီ Gift Request မရှိတော့ပါ။",
+                "🚫 ဒီ Game က မင်းအတွက်မဟုတ်ပါဘူး။ /game ကို ကိုယ်တိုင်နှိပ်ပြီး Game စပါ။",
                 show_alert=True
             )
 
             return
 
-        gift = pending_gifts[key]
+        bot.answer_callback_query(call.id)
 
-        # Sender ပဲ Confirm လုပ်နိုင်
-        if call.from_user.id != gift["sender_id"]:
+        try:
 
-            bot.answer_callback_query(
-                call.id,
-                "⚠️ ဒီ Gift ကို ပေးတဲ့သူသာ Confirm လုပ်နိုင်ပါတယ်!",
-                show_alert=True
-            )
-
-            return
-
-        sender_data = get_user(call.from_user)
-
-        if not sender_data:
-
-            bot.answer_callback_query(
-                call.id,
-                "❌ Account မတွေ့ပါ။",
-                show_alert=True
-            )
-
-            pending_gifts.pop(key, None)
-
-            return
-
-        # Receiver account ကို သေချာရှိအောင်လုပ်
-        receiver_data = get_user(
-            bot.get_chat_member(
+            bot.delete_message(
                 call.message.chat.id,
-                gift["receiver_id"]
-            ).user
+                call.message.message_id
+            )
+
+        except Exception:
+            pass
+
+        user = call.from_user
+
+        text = (
+            "🎰 <b>CASINO SLOT</b>\n\n"
+            f"👤 {mention_user(user)}\n\n"
+            "💵 <b>Bet Amount ရွေးပါ</b>"
         )
 
-        if not receiver_data:
+        bot.send_message(
+            call.message.chat.id,
+            text,
+            reply_markup=create_bet_keyboard(owner_id),
+            parse_mode="HTML"
+        )
+
+
+    # ==========================================
+    # SLOT BET
+    # ==========================================
+
+    @bot.callback_query_handler(
+        func=lambda call: call.data.startswith("slot_bet:")
+    )
+    def slot_bet(call):
+
+        parts = call.data.split(":")
+
+        if len(parts) != 3:
 
             bot.answer_callback_query(
                 call.id,
-                "❌ Receiver Account မတွေ့ပါ။",
+                "❌ Invalid game.",
                 show_alert=True
             )
 
-            pending_gifts.pop(key, None)
+            return
+
+        owner_id = int(parts[1])
+        bet = int(parts[2])
+
+
+        # ==========================================
+        # Owner Protection
+        # ==========================================
+
+        if call.from_user.id != owner_id:
+
+            bot.answer_callback_query(
+                call.id,
+                "🚫 ဒီ Game က မင်းအတွက်မဟုတ်ပါဘူး။ /game ကို ကိုယ်တိုင်နှိပ်ပြီး Game စပါ။",
+                show_alert=True
+            )
 
             return
 
-        amount = int(gift["amount"])
-
 
         # ==========================================
-        # USD
+        # Get User
         # ==========================================
 
-        if gift["type"] == "usd":
+        user = get_user(call.from_user)
 
-            current_balance = int(
-                sender_data.get("usd", 0)
+        if not user:
+
+            bot.answer_callback_query(
+                call.id,
+                "❌ User account မတွေ့ပါဘူး။ /start အရင်လုပ်ပါ။",
+                show_alert=True
             )
 
-            if current_balance < amount:
+            return
 
-                bot.answer_callback_query(
-                    call.id,
-                    "❌ USD Balance မလုံလောက်တော့ပါ!",
-                    show_alert=True
-                )
 
-                pending_gifts.pop(key, None)
+        balance = int(
+            user.get("usd", 0)
+        )
 
-                return
 
+        # ==========================================
+        # Balance Check
+        # ==========================================
+
+        if balance < bet:
+
+            bot.answer_callback_query(
+                call.id,
+                f"❌ USD မလုံလောက်ပါ!\n\n"
+                f"💵 လက်ကျန်: {money(balance)} USD",
+                show_alert=True
+            )
+
+            return
+
+
+        # ==========================================
+        # Deduct Bet
+        # ==========================================
+
+        update_balance(
+            owner_id,
+            usd_change=-bet
+        )
+
+
+        bot.answer_callback_query(
+            call.id,
+            f"🎰 {money(bet)} USD Spin လုပ်နေပါပြီ..."
+        )
+
+
+        # ==========================================
+        # Telegram Slot
+        # ==========================================
+
+        slot_message = bot.send_dice(
+            call.message.chat.id,
+            emoji="🎰"
+        )
+
+
+        # Telegram animation ပြီးအောင်စောင့်
+        time.sleep(4)
+
+
+        # ==========================================
+        # Read Slot Result
+        # ==========================================
+
+        dice_value = slot_message.dice.value
+
+        value = dice_value - 1
+
+        left = value & 3
+        middle = (value >> 2) & 3
+        right = (value >> 4) & 3
+
+
+        symbols = {
+            0: "BAR",
+            1: "🍇",
+            2: "🍋",
+            3: "7️⃣"
+        }
+
+
+        result = [
+            symbols[left],
+            symbols[middle],
+            symbols[right]
+        ]
+
+        a, b, c = result
+
+
+        # ==========================================
+        # Multiplier
+        # ==========================================
+
+        multiplier = 0
+
+
+        # 777
+        if result == [
+            "7️⃣",
+            "7️⃣",
+            "7️⃣"
+        ]:
+
+            multiplier = 30
+
+
+        # BAR BAR BAR
+        elif result == [
+            "BAR",
+            "BAR",
+            "BAR"
+        ]:
+
+            multiplier = 10
+
+
+        # Special 3x
+        elif result in [
+
+            [
+                "7️⃣",
+                "7️⃣",
+                "🍇"
+            ],
+
+            [
+                "🍇",
+                "7️⃣",
+                "7️⃣"
+            ],
+
+            [
+                "7️⃣",
+                "7️⃣",
+                "BAR"
+            ]
+
+        ]:
+
+            multiplier = 3
+
+
+        # Three Same Symbols
+        elif a == b == c:
+
+            multiplier = 5
+
+
+        # Lose
+        else:
+
+            multiplier = 0
+
+
+        # ==========================================
+        # Win Amount
+        # ==========================================
+
+        win_amount = bet * multiplier
+
+
+        # ==========================================
+        # WIN
+        # ==========================================
+
+        if multiplier > 0:
+
+            # Win amount add
             update_balance(
-                gift["sender_id"],
-                usd_change=-amount
+                owner_id,
+                usd_change=win_amount
             )
 
-            update_balance(
-                gift["receiver_id"],
-                usd_change=amount
+
+            final_user = get_user(
+                call.from_user
             )
 
-            currency_text = (
-                f"💵 <b>${money(amount)} USD</b>"
+            new_balance = int(
+                final_user.get("usd", 0)
+            )
+
+
+            # အသားတင်အမြတ်
+            net_profit = win_amount - bet
+
+
+            # ==========================================
+            # WIN MESSAGE
+            # ==========================================
+
+            result_text = (
+                "╔════════════════════╗\n"
+                "       🎉 <b>YOU WIN!</b>\n"
+                "╚════════════════════╝\n\n"
+
+                f"🎰 <b>ရလဒ်:</b> "
+                f"{a} | {b} | {c}\n\n"
+
+                "🎉 <b>နိုင်ပါပြီ!</b>\n"
+
+                f"💰 <b>အသားတင်: "
+                f"+{money(net_profit)} USD</b>\n\n"
+
+                f"💳 လက်ကျန်: "
+                f"<b>{money(new_balance)} USD</b>\n\n"
+
+                "🍀 ကံကောင်းပါစေ!"
             )
 
 
         # ==========================================
-        # DIA
+        # LOSE
         # ==========================================
 
         else:
 
-            current_balance = int(
-                sender_data.get("dia", 0)
+            final_user = get_user(
+                call.from_user
             )
 
-            if current_balance < amount:
-
-                bot.answer_callback_query(
-                    call.id,
-                    "❌ DIA Balance မလုံလောက်တော့ပါ!",
-                    show_alert=True
-                )
-
-                pending_gifts.pop(key, None)
-
-                return
-
-            update_balance(
-                gift["sender_id"],
-                dia_change=-amount
-            )
-
-            update_balance(
-                gift["receiver_id"],
-                dia_change=amount
-            )
-
-            currency_text = (
-                f"💎 <b>{money(amount)} DIA</b>"
+            new_balance = int(
+                final_user.get("usd", 0)
             )
 
 
-        # Pending ဖျက်
-        pending_gifts.pop(
-            key,
-            None
-        )
+            # ရှုံးတဲ့အခါ အသားတင်အရှုံး = Bet
+            net_loss = bet
+
+
+            # ==========================================
+            # LOSE MESSAGE
+            # ==========================================
+
+            result_text = (
+                "╔════════════════════╗\n"
+                "      😢 <b>YOU LOSE</b>\n"
+                "╚════════════════════╝\n\n"
+
+                f"🎰 <b>ရလဒ်:</b> "
+                f"{a} | {b} | {c}\n\n"
+
+                "😢 <b>ရှုံးသွားပါပြီ!</b>\n"
+
+                f"💸 <b>အသားတင်: "
+                f"-{money(net_loss)} USD</b>\n\n"
+
+                f"💳 လက်ကျန်: "
+                f"<b>{money(new_balance)} USD</b>\n\n"
+
+                "🍀 နောက်တစ်ကြိမ် ကံကောင်းပါစေ!"
+            )
 
 
         # ==========================================
-        # Success
+        # Send Result
         # ==========================================
 
-        bot.answer_callback_query(
-            call.id,
-            "✅ Gift Sent!"
+        bot.reply_to(
+            slot_message,
+            result_text,
+            reply_markup=create_bet_keyboard(owner_id),
+            parse_mode="HTML"
         )
-
-        try:
-
-            bot.edit_message_text(
-                "╔════════════════════╗\n"
-                "      🎁 <b>GIFT SENT!</b>\n"
-                "╚════════════════════╝\n\n"
-                f"👤 From: <b>{gift['sender_name']}</b>\n"
-                f"👤 To: <b>{gift['receiver_name']}</b>\n\n"
-                f"💰 Sent: {currency_text}\n\n"
-                "🎉 Gift ပေးပို့ပြီးပါပြီ!",
-                call.message.chat.id,
-                call.message.message_id,
-                parse_mode="HTML"
-            )
-
-        except Exception:
-            pass
-
-
-    # ==========================================
-    # CANCEL
-    # ==========================================
-
-    @bot.callback_query_handler(
-        func=lambda call: call.data.startswith("gift_cancel:")
-    )
-    def cancel_gift(call):
-
-        key = call.data.replace(
-            "gift_cancel:",
-            "",
-            1
-        )
-
-        if key not in pending_gifts:
-
-            bot.answer_callback_query(
-                call.id,
-                "❌ ဒီ Gift Request မရှိတော့ပါ။",
-                show_alert=True
-            )
-
-            return
-
-        gift = pending_gifts[key]
-
-        if call.from_user.id != gift["sender_id"]:
-
-            bot.answer_callback_query(
-                call.id,
-                "⚠️ ဒီ Gift ကို ပေးတဲ့သူသာ Cancel လုပ်နိုင်ပါတယ်!",
-                show_alert=True
-            )
-
-            return
-
-        pending_gifts.pop(
-            key,
-            None
-        )
-
-        bot.answer_callback_query(
-            call.id,
-            "❌ Gift Cancelled"
-        )
-
-        try:
-
-            bot.edit_message_text(
-                "╔════════════════════╗\n"
-                "     ❌ <b>GIFT CANCELLED</b>\n"
-                "╚════════════════════╝\n\n"
-                "ဒီ Gift Transaction ကို\n"
-                "Cancel လုပ်လိုက်ပါပြီ။",
-                call.message.chat.id,
-                call.message.message_id,
-                parse_mode="HTML"
-            )
-
-        except Exception:
-            pass
