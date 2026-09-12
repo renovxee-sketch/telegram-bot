@@ -1,75 +1,23 @@
-from telebot import types
-from database import users_collection
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ContextTypes
 
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    bot_username = context.bot.username
+    user_display = user.full_name if user.full_name else "yaung"
+    
+    text = (
+        f"👋 **မင်္ဂလာပါ {user_display} (`{user.id}`)!**\n\n"
+        f"🎮 **ဂိမ်းကစားရန် Bot** မှ ကြိုဆိုပါတယ်ဗျာ။\n\n"
+        f"👇 အောက်ပါခလုတ်ကိုနှိပ်ပြီး Group ထဲသို့ ထည့်သွင်းနိုင်ပါသည်!"
+    )
+    
+    keyboard = [
+        [InlineKeyboardButton("➕ Add Me To Your Group", url=f"https://t.me/{bot_username}?startgroup=true")]
+    ]
+    
+    await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
 
-def register_start_handlers(bot):
-
-    @bot.message_handler(commands=["start"])
-    def start_command(message):
-
-        user = message.from_user
-
-        existing_user = users_collection.find_one(
-            {"user_id": user.id}
-        )
-
-        # User အသစ်ဆိုရင် Bonus တစ်ကြိမ်ပဲပေးမယ်
-        if not existing_user:
-
-            users_collection.insert_one({
-                "user_id": user.id,
-                "name": user.first_name or "User",
-                "username": user.username or "",
-                "usd": 50000,
-                "dia": 500,
-                "welcome_bonus": True
-            })
-
-        else:
-
-            # Balance ကို မထိဘဲ Name / Username ပဲ update
-            users_collection.update_one(
-                {"user_id": user.id},
-                {
-                    "$set": {
-                        "name": user.first_name or "User",
-                        "username": user.username or ""
-                    }
-                }
-            )
-
-        # MongoDB ထဲက လက်ရှိ balance ကိုယူ
-        current_user = users_collection.find_one(
-            {"user_id": user.id}
-        )
-
-        usd = int(current_user.get("usd", 0))
-        dia = int(current_user.get("dia", 0))
-
-        name = user.first_name or "User"
-
-        text = (
-            f"👋 မင်္ဂလာပါ <b>{name}</b> ({user.id})!\n\n"
-            "🎮 ဂိမ်းကစားရန် Bot မှ ကြိုဆိုပါတယ်!\n\n"
-            f"💎 Diamonds: {dia:,} 💎\n"
-            f"💵 USD: ${usd:,} USD\n\n"
-            "👇 အောက်ပါခလုတ်ကိုနှိပ်ပြီး Group ထဲသို့ "
-            "ထည့်သွင်းနိုင်ပါသည်!"
-        )
-
-        markup = types.InlineKeyboardMarkup()
-
-        # Add Group Button
-        markup.add(
-            types.InlineKeyboardButton(
-                "➕  ADD ME TO YOUR GROUP  ➕",
-                url="https://t.me/Ruifineshyt_bot?startgroup=true"
-            )
-        )
-
-        bot.send_message(
-            message.chat.id,
-            text,
-            reply_markup=markup,
-            parse_mode="HTML"
-        )
+async def handle_numeric_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # အခြား စာသားစစ်ဆေးစရာများအတွက်
+    pass
